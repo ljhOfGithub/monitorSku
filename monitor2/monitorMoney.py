@@ -16,7 +16,7 @@ import signal
 import sys
 from urllib.parse import quote
 
-# 修改：将所有chrome目录放在D:\data下
+# 修改：将所有chrome目录放在C:\data下
 chrome_dirs = [
     r"./chrome3", 
     r"./chrome4", 
@@ -45,10 +45,10 @@ class JDSKUMonitor:
         self.user_data_dirs = user_data_dirs or chrome_dirs
         self.webhook_urls = webhook_urls or []
         self.alert_webhook_url = alert_webhook_url
-        # 修改：将所有数据文件夹放在D:\data下
-        self.all_skus_dir = r"D:\data\all_skus"
-        self.new_skus_records_dir = r"D:\data\new_skus_records"
-        self.monitor_results_file = r"D:\data\monitor_results.json"
+        # 修改：将所有数据文件夹放在C:\data下
+        self.all_skus_dir = r"C:\data\all_skus"
+        self.new_skus_records_dir = r"C:\data\new_skus_records"
+        self.monitor_results_file = r"C:\data\monitor_results.json"
         self.monitor_type = "已赚钱类"
         # 先初始化监控结果，防止后续访问失败
         self.init_monitor_results()
@@ -238,13 +238,13 @@ class JDSKUMonitor:
     
     def create_directories(self):
         """创建所有必要的文件夹"""
-        # 修改：将所有文件夹放在D:\data下
+        # 修改：将所有文件夹放在C:\data下
         directories = [
-            r"D:\data\monitor_data",
-            r"D:\data\monitor_logs", 
-            r"D:\data\search_pages",
-            r"D:\data\product_details",
-            r"D:\data\new_skus_records",
+            r"C:\data\monitor_data",
+            r"C:\data\monitor_logs", 
+            # r"C:\data\search_pages",
+            r"C:\data\product_details",
+            r"C:\data\new_skus_records",
             self.all_skus_dir,
         ]
         
@@ -366,15 +366,15 @@ class JDSKUMonitor:
         else:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
-        # 修改：保存到D:\data\search_pages
-        search_pages_dir = r"D:\data\search_pages"
-        if not os.path.exists(search_pages_dir):
-            os.makedirs(search_pages_dir)
+        # 修改：保存到C:\data\search_pages
+        search_pages_dir = r"C:\data\search_pages"
+        # if not os.path.exists(search_pages_dir):
+        #     os.makedirs(search_pages_dir)
         
         filepath = os.path.join(search_pages_dir, filename)
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+        # with open(filepath, 'w', encoding='utf-8') as f:
+        #     f.write(html_content)
         
         # print(f"💾 搜索页面已保存: {filename}")
         return filepath
@@ -392,8 +392,8 @@ class JDSKUMonitor:
         else:
             details_filename = f"products_{safe_keyword}_{timestamp}.json"
         
-        # 修改：保存到D:\data\product_details
-        product_details_dir = r"D:\data\product_details"
+        # 修改：保存到C:\data\product_details
+        product_details_dir = r"C:\data\product_details"
         if not os.path.exists(product_details_dir):
             os.makedirs(product_details_dir)
         
@@ -1002,7 +1002,7 @@ class JDSKUMonitor:
         #     return 1
         # else:
         #     return 5
-        return 0.5
+        return 1
     
     def monitor_keywords_concurrent(self):
         """并发监控所有关键词"""
@@ -1199,8 +1199,8 @@ class JDSKUMonitor:
     
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
         """记录详细监控结果到日志文件"""
-        # 修改：日志保存到D:\data\monitor_logs
-        log_file = f"D:\\data\\monitor_logs\\monitor_{datetime.now().strftime('%Y%m%d')}.log"
+        # 修改：日志保存到C:\data\monitor_logs
+        log_file = f"C:\\data\\monitor_logs\\monitor_{datetime.now().strftime('%Y%m%d')}.log"
         
         log_entry = f"\n{'='*80}\n"
         log_entry += f"监控执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -1338,8 +1338,8 @@ def main():
             alert_webhook_url=alert_webhook_url
         )
     elif choice == "2":
-        # 使用文件方式 - 修改cookies文件路径到D:\data目录
-        cookies_file = r"D:\data\cookies.txt"
+        # 使用文件方式 - 修改cookies文件路径到C:\data目录
+        cookies_file = r"C:\data\cookies.txt"
         monitor = JDSKUMonitor(
             keywords_config_file, 
             cookies_source="file",
