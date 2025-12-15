@@ -15,7 +15,16 @@ import threading
 import signal
 import sys
 from urllib.parse import quote
-chrome_dirs = ["./chrome3", "./chrome4", "./chrome7", "./chrome8", "./chrome9"]
+
+# 修改：将所有chrome目录放在D:\data下
+chrome_dirs = [
+    r"./chrome3", 
+    r"./chrome4", 
+    r"./chrome7", 
+    r"./chrome8", 
+    r"./chrome9"
+]
+
 class JDSKUMonitor:
     def __init__(self, keywords_config_file, cookies_source="browser", cookies_file="cookies.txt", 
                  user_data_dirs=None, webhook_urls=None, alert_webhook_url=None):
@@ -36,9 +45,10 @@ class JDSKUMonitor:
         self.user_data_dirs = user_data_dirs or chrome_dirs
         self.webhook_urls = webhook_urls or []
         self.alert_webhook_url = alert_webhook_url
-        self.all_skus_dir = "all_skus"
-        self.new_skus_records_dir = "new_skus_records"
-        self.monitor_results_file = "monitor_results.json"
+        # 修改：将所有数据文件夹放在D:\data下
+        self.all_skus_dir = r"D:\data\all_skus"
+        self.new_skus_records_dir = r"D:\data\new_skus_records"
+        self.monitor_results_file = r"D:\data\monitor_results.json"
         self.monitor_type = "已赚钱类"
         # 先初始化监控结果，防止后续访问失败
         self.init_monitor_results()
@@ -228,12 +238,13 @@ class JDSKUMonitor:
     
     def create_directories(self):
         """创建所有必要的文件夹"""
+        # 修改：将所有文件夹放在D:\data下
         directories = [
-            "monitor_data",
-            "monitor_logs", 
-            "search_pages",
-            "product_details",
-            "new_skus_records",
+            r"D:\data\monitor_data",
+            r"D:\data\monitor_logs", 
+            r"D:\data\search_pages",
+            r"D:\data\product_details",
+            r"D:\data\new_skus_records",
             self.all_skus_dir,
         ]
         
@@ -308,7 +319,7 @@ class JDSKUMonitor:
         else:
             filename = f"new_skus_{safe_keyword}_{timestamp}.json"
         
-        filepath = os.path.join("new_skus_records", filename)
+        filepath = os.path.join(self.new_skus_records_dir, filename)
         
         data = {
             'keyword': keyword,
@@ -355,7 +366,12 @@ class JDSKUMonitor:
         else:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
-        filepath = os.path.join("search_pages", filename)
+        # 修改：保存到D:\data\search_pages
+        search_pages_dir = r"D:\data\search_pages"
+        if not os.path.exists(search_pages_dir):
+            os.makedirs(search_pages_dir)
+        
+        filepath = os.path.join(search_pages_dir, filename)
         
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -376,7 +392,12 @@ class JDSKUMonitor:
         else:
             details_filename = f"products_{safe_keyword}_{timestamp}.json"
         
-        details_filepath = os.path.join("product_details", details_filename)
+        # 修改：保存到D:\data\product_details
+        product_details_dir = r"D:\data\product_details"
+        if not os.path.exists(product_details_dir):
+            os.makedirs(product_details_dir)
+        
+        details_filepath = os.path.join(product_details_dir, details_filename)
         
         details_data = {
             'keyword': keyword,
@@ -1178,7 +1199,8 @@ class JDSKUMonitor:
     
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
         """记录详细监控结果到日志文件"""
-        log_file = f"monitor_logs/monitor_{datetime.now().strftime('%Y%m%d')}.log"
+        # 修改：日志保存到D:\data\monitor_logs
+        log_file = f"D:\\data\\monitor_logs\\monitor_{datetime.now().strftime('%Y%m%d')}.log"
         
         log_entry = f"\n{'='*80}\n"
         log_entry += f"监控执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -1316,11 +1338,12 @@ def main():
             alert_webhook_url=alert_webhook_url
         )
     elif choice == "2":
-        # 使用文件方式
+        # 使用文件方式 - 修改cookies文件路径到D:\data目录
+        cookies_file = r"D:\data\cookies.txt"
         monitor = JDSKUMonitor(
             keywords_config_file, 
             cookies_source="file",
-            cookies_file="cookies.txt",
+            cookies_file=cookies_file,
             webhook_urls=webhook_urls,
             alert_webhook_url=alert_webhook_url
         )

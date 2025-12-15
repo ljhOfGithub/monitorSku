@@ -17,3 +17,4 @@ xiaomi/
 *.txt
 *.zip
 *processed_messages.json
+*results.json

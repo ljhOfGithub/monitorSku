@@ -15,7 +15,13 @@ import threading
 import signal
 import sys
 from urllib.parse import quote
-chrome_dirs = ["./chrome", "./chrome2"]
+
+# 修改：将所有chrome目录放在D:\data下
+chrome_dirs = [
+    r"./chrome", 
+    r"./chrome2", 
+]
+
 class JDSKUMonitor:
     def __init__(self, keywords_config_file, cookies_source="browser", cookies_file="cookies.txt", 
                  user_data_dirs=None, webhook_urls=None, alert_webhook_url=None):
@@ -32,16 +38,15 @@ class JDSKUMonitor:
         """
         self.keywords_config_file = keywords_config_file
         self.cookies_source = cookies_source
-        self.cookies_file = cookies_file
+        self.cookies_file = cookies_file        
         self.user_data_dirs = user_data_dirs or chrome_dirs
         self.webhook_urls = webhook_urls or []
         self.alert_webhook_url = alert_webhook_url
-        self.all_skus_dir = "all_skus"
-        self.new_skus_records_dir = "new_skus_records"
-        self.monitor_results_file = "monitor_results.json"
+        # 修改：将所有数据文件夹放在D:\data下
+        self.all_skus_dir = r"D:\data\all_skus"
+        self.new_skus_records_dir = r"D:\data\new_skus_records"
+        self.monitor_results_file = r"D:\data\monitor_results.json"
         self.monitor_type = "华为"
-        # self.browser = p.chromium.connect_over_cdp('http://localhost:9222')
-        # self.page = browser.new_page()
         # 先初始化监控结果，防止后续访问失败
         self.init_monitor_results()
         
@@ -51,7 +56,7 @@ class JDSKUMonitor:
         # 创建数据文件夹
         self.create_directories()
         
-        # 然后加载监控结果（可能会覆盖初始化的结果）
+        # # 然后加载监控结果（可能会覆盖初始化的结果）
         # self.load_monitor_results()
         
         # 设置信号处理，用于优雅退出
@@ -216,7 +221,7 @@ class JDSKUMonitor:
         # 只有在没有发送总结报告时才发送
         if not self.has_sent_summary and hasattr(self, 'current_monitor_data') and self.current_monitor_data:
             print("📤 发送未完成的监控总结通知...")
-            self.send_monitor_summary_notification(self.current_monitor_data)
+            self.send_alert_notification(self.current_monitor_data)
             self.has_sent_summary = True
         
         # self.save_monitor_results()
@@ -230,12 +235,13 @@ class JDSKUMonitor:
     
     def create_directories(self):
         """创建所有必要的文件夹"""
+        # 修改：将所有文件夹放在D:\data下
         directories = [
-            "monitor_data",
-            "monitor_logs", 
-            "search_pages",
-            "product_details",
-            "new_skus_records",
+            r"D:\data\monitor_data",
+            r"D:\data\monitor_logs", 
+            r"D:\data\search_pages",
+            r"D:\data\product_details",
+            r"D:\data\new_skus_records",
             self.all_skus_dir,
         ]
         
@@ -310,7 +316,7 @@ class JDSKUMonitor:
         else:
             filename = f"new_skus_{safe_keyword}_{timestamp}.json"
         
-        filepath = os.path.join("new_skus_records", filename)
+        filepath = os.path.join(self.new_skus_records_dir, filename)
         
         data = {
             'keyword': keyword,
@@ -357,7 +363,12 @@ class JDSKUMonitor:
         else:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
-        filepath = os.path.join("search_pages", filename)
+        # 修改：保存到D:\data\search_pages
+        search_pages_dir = r"D:\data\search_pages"
+        if not os.path.exists(search_pages_dir):
+            os.makedirs(search_pages_dir)
+        
+        filepath = os.path.join(search_pages_dir, filename)
         
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -378,7 +389,12 @@ class JDSKUMonitor:
         else:
             details_filename = f"products_{safe_keyword}_{timestamp}.json"
         
-        details_filepath = os.path.join("product_details", details_filename)
+        # 修改：保存到D:\data\product_details
+        product_details_dir = r"D:\data\product_details"
+        if not os.path.exists(product_details_dir):
+            os.makedirs(product_details_dir)
+        
+        details_filepath = os.path.join(product_details_dir, details_filename)
         
         details_data = {
             'keyword': keyword,
@@ -523,135 +539,6 @@ class JDSKUMonitor:
             # 单个SKU通知间短暂延迟
             time.sleep(2)
     
-    # def access_payment_page_with_debug_port(pay_url):
-    #     """使用Playwright连接调试端口9222访问支付页面"""
-    #     try:
-    #         # 连接已运行的浏览器实例（端口9222）
-    #         with sync_playwright() as p:
-    #             # 连接到已运行的Chrome实例
-    #             browser = p.chromium.connect_over_cdp('http://localhost:9222')
-                
-    #             # 获取所有可用的上下文
-    #             contexts = browser.contexts
-    #             if not contexts:
-    #                 # 如果没有上下文，创建一个新的
-    #                 context = browser.new_context(
-    #                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-    #                     viewport={'width': 1920, 'height': 1080},
-    #                     extra_http_headers={
-    #                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    #                         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    #                     }
-    #                 )
-    #             else:
-    #                 # 使用第一个可用的上下文
-    #                 context = contexts[0]
-                
-    #             # 创建一个新页面
-    #             page = context.new_page()
-                
-    #             try:
-    #                 # 导航到支付页面
-    #                 print(f"🌐 正在加载支付页面: {pay_url}")
-    #                 page.goto(pay_url, timeout=30000, wait_until='networkidle')
-                    
-    #                 # 等待页面加载
-    #                 time.sleep(3)
-                    
-    #                 # 尝试查找并点击在线支付按钮
-    #                 print("🔍 正在查找在线支付按钮...")
-                    
-    #                 # 根据错误信息，实际需要点击的是taro-button-core元素
-    #                 payment_selectors = [
-    #                     "taro-button-core.ActionBar_submit_LiQOa",
-    #                     ".ActionBar_submit_LiQOa",
-    #                     "taro-button-core[class*='submit']",
-    #                     "taro-button-core:has-text('在线支付')",
-    #                     "taro-text-core:has-text('在线支付')",
-    #                     "text=在线支付 >> visible=true",
-    #                     ".ActionBar_text_Hv_Ml",
-    #                     ".ActionBar_actionBar_8mJ27 .ActionBar_submit_LiQOa",
-    #                     "button:has-text('在线支付')",
-    #                     ".pay-online",
-    #                     "#onlinePay",
-    #                     "input[value='在线支付']",
-    #                 ]
-                    
-    #                 clicked = False
-    #                 for selector in payment_selectors:
-    #                     try:
-    #                         if page.locator(selector).count() > 0:
-    #                             print(f"✅ 找到元素: {selector}")
-                                
-    #                             # 方法1: 直接点击
-    #                             page.locator(selector).first.click(timeout=5000)
-    #                             clicked = True
-    #                             print(f"✅ 已点击在线支付按钮")
-    #                             break
-                                    
-    #                     except Exception as e:
-    #                         print(f"⚠️ 点击失败: {e}")
-    #                         continue
-
-    #                 if not clicked:
-    #                     print("❌ 未找到支付按钮，尝试查找提交订单按钮...")
-                        
-    #                     # 尝试查找提交订单按钮
-    #                     submit_selectors = [
-    #                         "text=提交订单",
-    #                         "button:has-text('提交订单')",
-    #                         "#orderSubmit",
-    #                         ".submit-btn",
-    #                         "input[type='submit']",
-    #                         "taro-button-core:has-text('提交订单')"
-    #                     ]
-                        
-    #                     for selector in submit_selectors:
-    #                         try:
-    #                             if page.locator(selector).count() > 0:
-    #                                 print(f"✅ 找到提交订单按钮: {selector}")
-    #                                 page.locator(selector).first.click(force=True)
-    #                                 clicked = True
-    #                                 print(f"✅ 已点击提交订单按钮")
-    #                                 break
-    #                         except:
-    #                             continue
-                    
-    #                 if clicked:
-    #                     print("✅ 成功触发点击操作")
-    #                 else:
-    #                     print("❌ 未能成功点击任何按钮")
-                    
-    #                 # 等待一段时间观察结果
-    #                 time.sleep(3)
-                    
-    #                 # 获取页面标题和内容摘要
-    #                 page_title = page.title()
-    #                 print(f"📄 页面标题: {page_title}")
-                    
-    #                 # 检查当前URL是否变化
-    #                 current_url = page.url
-    #                 print(f"📍 当前URL: {current_url}")
-                    
-    #                 # 检查是否成功跳转到支付页面
-    #                 if 'cashier' in current_url or 'pay' in current_url or 'payment' in current_url:
-    #                     print("🎉 成功进入支付页面！")
-                    
-    #             except Exception as e:
-    #                 print(f"❌ 访问支付页面时出错: {e}")
-                
-    #             finally:
-    #                 # 保持页面打开
-    #                 try:
-    #                     pages = context.pages
-    #                     print(f"📑 当前上下文中有 {len(pages)} 个页面")
-    #                 except:
-    #                     pass
-        
-    #     except Exception as e:
-    #         print(f"❌ 连接调试浏览器失败: {e}")
-    #         print("💡 请确保已启动Chrome浏览器并启用远程调试")
-    
     def send_keyword_new_skus_notification(self, keyword_config, new_products):
         """发送关键词级别的新SKU通知"""
         if not new_products:
@@ -679,11 +566,8 @@ class JDSKUMonitor:
         # message += "📦 所有新商品详情:\n"
         for i, product in enumerate(new_products, 1):
             sku = product['sku_id']
-            pay_url = f"https://trade.m.jd.com/checkout?commlist={sku},,1#/index"
             title = product.get('title', '未知')
             
-            # self.access_payment_page_with_debug_port(pay_url)
-
             message += f"{i}. 支付链接: https://trade.m.jd.com/checkout?commlist={sku},,1#/index\n"
             message += f"     详情链接: https://item.m.jd.com/product/{sku}.html\n"
             message += f"标题: {title}\n"
@@ -1036,7 +920,7 @@ class JDSKUMonitor:
             # 更新监控统计
             self.update_keyword_stats(keyword_config, len(new_skus_for_keyword))
         else:
-            print(f"ℹ️  浏览器 {browser_index} 搜索关键词 '{keyword}' 在时间点 {datetime.now().isoformat(' ')} (价格: {min_price}-{max_price}元) 找到 {len(all_skus)} 个SKU 没有新SKU 搜索URL: {search_url}")
+            print(f"ℹ️  浏览器 {browser_index} 搜索关键词 '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 没有新SKU 搜索URL: {search_url}")
         
         return all_skus, product_links, new_skus_for_keyword, new_products_for_keyword
     
@@ -1112,10 +996,10 @@ class JDSKUMonitor:
         
         # 早上9点-11点或晚上6点-8点，使用15分钟间隔
         # if (9 <= current_hour <= 15) or (17 <= current_hour <= 20) or (22 <= current_hour <= 24) or (0 <= current_hour <= 2):
-        #     return 0.5
-        # else:
         #     return 1
-        return 1
+        # else:
+        #     return 5
+        return 0.5
     
     def monitor_keywords_concurrent(self):
         """并发监控所有关键词"""
@@ -1245,21 +1129,20 @@ class JDSKUMonitor:
             'process_timestamp': process_timestamp
         }
         
-        # 更新监控结果
+        # # 更新监控结果
         # self.update_monitor_results(total_new_skus, monitor_start_time, process_timestamp, keyword_new_skus_details)
         
         # 发送总结通知（只有在正常完成时才发送）
         if self.is_running:
             print("📤 发送监控总结通知...")
             self.send_monitor_summary_notification(self.current_monitor_data)
-            self.has_sent_summary = True
         
         print(f"\n✅ 并发监控任务完成，发现 {len(total_new_skus)} 个新SKU")
         
         # 记录详细日志
         self.log_detailed_monitoring_result(total_new_skus, process_timestamp, keyword_new_skus_details)
         
-        # 保存监控结果
+        # # 保存监控结果
         # self.save_monitor_results()
     
     def update_keyword_stats(self, keyword_config, new_skus_count):
@@ -1313,7 +1196,8 @@ class JDSKUMonitor:
     
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
         """记录详细监控结果到日志文件"""
-        log_file = f"monitor_logs/monitor_{datetime.now().strftime('%Y%m%d')}.log"
+        # 修改：日志保存到D:\data\monitor_logs
+        log_file = f"D:\\data\\monitor_logs\\monitor_{datetime.now().strftime('%Y%m%d')}.log"
         
         log_entry = f"\n{'='*80}\n"
         log_entry += f"监控执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
