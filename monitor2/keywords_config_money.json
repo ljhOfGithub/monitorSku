@@ -1,0 +1,1016 @@
+[
+    {
+        "keyword": "X200 12+256G",
+        "min_price": 2155,
+        "max_price": 2755,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200 12+512G",
+        "min_price": 2530,
+        "max_price": 3130,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200 16+512G",
+        "min_price": 2830,
+        "max_price": 3430,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200 16+1TB",
+        "min_price": 3105,
+        "max_price": 3705,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro 12+256G",
+        "min_price": 2785,
+        "max_price": 3385,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro 16+512G",
+        "min_price": 3370,
+        "max_price": 3970,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro 16+1TB",
+        "min_price": 3775,
+        "max_price": 4375,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro 16+1TB 卫星通信版",
+        "min_price": 4160,
+        "max_price": 4760,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro+mini 12+256G",
+        "min_price": 2445,
+        "max_price": 3045,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro+mini 12+512G",
+        "min_price": 2590,
+        "max_price": 3190,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro+mini 16+512G",
+        "min_price": 2990,
+        "max_price": 3590,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Pro+mini 16+1TB",
+        "min_price": 3400,
+        "max_price": 4000,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Ultra 12+256G",
+        "min_price": 4260,
+        "max_price": 4860,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Ultra 12+512G",
+        "min_price": 4280,
+        "max_price": 4880,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Ultra 16+512G",
+        "min_price": 4880,
+        "max_price": 5480,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Ultra 16+1TB 卫星通信版",
+        "min_price": 5990,
+        "max_price": 6590,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200+Ultra 16+1TB 摄影师套装",
+        "min_price": 8100,
+        "max_price": 8700,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200s 12+256G",
+        "min_price": 2230,
+        "max_price": 2830,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200s 12+512G",
+        "min_price": 2660,
+        "max_price": 3260,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200s 16+256G",
+        "min_price": 2490,
+        "max_price": 3090,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200s 16+512G",
+        "min_price": 2835,
+        "max_price": 3435,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X200s 16+1TB",
+        "min_price": 3065,
+        "max_price": 3665,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X+Fold5 12+256G",
+        "min_price": 5110,
+        "max_price": 5710,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X+Fold5 12+512G",
+        "min_price": 6140,
+        "max_price": 6740,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X+Fold5 16+512G",
+        "min_price": 6490,
+        "max_price": 7090,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "X+Fold5 16+1TB",
+        "min_price": 7540,
+        "max_price": 8140,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "Find+N5 12+256G",
+        "min_price": 6680,
+        "max_price": 7280,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+N5 16+512G",
+        "min_price": 7600,
+        "max_price": 8200,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+N5 16+1TB",
+        "min_price": 8590,
+        "max_price": 9190,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9 12+256G",
+        "min_price": 2685,
+        "max_price": 3285,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9 12+512G",
+        "min_price": 3385,
+        "max_price": 3985,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9 16+256G",
+        "min_price": 3085,
+        "max_price": 3685,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9 16+512G",
+        "min_price": 3655,
+        "max_price": 4255,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9 16+1TB",
+        "min_price": 4080,
+        "max_price": 4680,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9+Pro 12+256G",
+        "min_price": 3650,
+        "max_price": 4250,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9+Pro 12+512G",
+        "min_price": 4240,
+        "max_price": 4840,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9+Pro 16+512G",
+        "min_price": 4380,
+        "max_price": 4980,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X9+Pro 16+1TB",
+        "min_price": 5130,
+        "max_price": 5730,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8 12+256G",
+        "min_price": 1935,
+        "max_price": 2535,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8 12+512G",
+        "min_price": 2165,
+        "max_price": 2765,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8 16+256G",
+        "min_price": 2135,
+        "max_price": 2735,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8 16+512G",
+        "min_price": 2405,
+        "max_price": 3005,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8 16+1TB",
+        "min_price": 2985,
+        "max_price": 3585,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Pro 12+256G",
+        "min_price": 2840,
+        "max_price": 3440,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Pro 12+512G",
+        "min_price": 3170,
+        "max_price": 3770,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Pro 16+512G",
+        "min_price": 3550,
+        "max_price": 4150,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Pro 16+1TB",
+        "min_price": 3740,
+        "max_price": 4340,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Pro 16+1TB 卫星通信版",
+        "min_price": 3940,
+        "max_price": 4540,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s 12+256G",
+        "min_price": 2070,
+        "max_price": 2670,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s 12+512G",
+        "min_price": 2500,
+        "max_price": 3100,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s 16+256G",
+        "min_price": 2320,
+        "max_price": 2920,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s 16+512G",
+        "min_price": 2705,
+        "max_price": 3305,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s 16+1TB",
+        "min_price": 3115,
+        "max_price": 3715,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s+ 12+256G",
+        "min_price": 2035,
+        "max_price": 2635,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s+ 12+512G",
+        "min_price": 2555,
+        "max_price": 3155,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s+ 16+512G",
+        "min_price": 2735,
+        "max_price": 3335,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8s+ 16+1TB",
+        "min_price": 3220,
+        "max_price": 3820,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Ultra 12+256G",
+        "min_price": 4190,
+        "max_price": 4790,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Ultra 16+512G",
+        "min_price": 4850,
+        "max_price": 5450,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Find+X8+Ultra 16+1TB",
+        "min_price": 5640,
+        "max_price": 6240,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15 12+256G",
+        "min_price": 1570,
+        "max_price": 2170,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15 12+512G",
+        "min_price": 1990,
+        "max_price": 2590,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15 16+256G",
+        "min_price": 1890,
+        "max_price": 2490,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15 16+512G",
+        "min_price": 2290,
+        "max_price": 2890,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15 16+1TB",
+        "min_price": 2555,
+        "max_price": 3155,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15+Pro 12+256G",
+        "min_price": 2340,
+        "max_price": 2940,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15+Pro 12+512G",
+        "min_price": 2590,
+        "max_price": 3190,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15+Pro 16+512G",
+        "min_price": 2890,
+        "max_price": 3490,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno15+Pro 16+1TB",
+        "min_price": 3490,
+        "max_price": 4090,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14 12+256G",
+        "min_price": 1290,
+        "max_price": 1890,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14 12+512G",
+        "min_price": 1520,
+        "max_price": 2120,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14 16+256G",
+        "min_price": 1530,
+        "max_price": 2130,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14 16+512G",
+        "min_price": 1790,
+        "max_price": 2390,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14 16+1TB",
+        "min_price": 2390,
+        "max_price": 2990,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14+Pro 12+256G",
+        "min_price": 1620,
+        "max_price": 2220,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14+Pro 12+512G",
+        "min_price": 1990,
+        "max_price": 2590,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14+Pro 16+512G",
+        "min_price": 2355,
+        "max_price": 2955,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "Reno14+Pro 16+1TB",
+        "min_price": 3040,
+        "max_price": 3640,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "K12s 12+512G",
+        "min_price": 560,
+        "max_price": 1160,
+        "brand": "oppo"
+    },
+    {
+        "keyword": "iQOO13 12+256G",
+        "min_price": 2150,
+        "max_price": 2750,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO13 16+512G",
+        "min_price": 2570,
+        "max_price": 3170,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO13 16+1TB",
+        "min_price": 2910,
+        "max_price": 3510,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo 12+256G",
+        "min_price": 410,
+        "max_price": 1010,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo 12+512G",
+        "min_price": 770,
+        "max_price": 1370,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo 16+256G",
+        "min_price": 580,
+        "max_price": 1180,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo 16+512G",
+        "min_price": 930,
+        "max_price": 1530,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo Pro 12+256G",
+        "min_price": 575,
+        "max_price": 1175,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo Pro 12+512G",
+        "min_price": 850,
+        "max_price": 1450,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo Pro 16+256G",
+        "min_price": 830,
+        "max_price": 1430,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo Pro 16+512G",
+        "min_price": 1130,
+        "max_price": 1730,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo+ 12+256G",
+        "min_price": 890,
+        "max_price": 1490,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo+ 12+512G",
+        "min_price": 1230,
+        "max_price": 1830,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo+ 16+256G",
+        "min_price": 1130,
+        "max_price": 1730,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z10 Turbo+ 16+512G",
+        "min_price": 1510,
+        "max_price": 2110,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "iQOO+Z9 12+512G",
+        "min_price": 520,
+        "max_price": 1120,
+        "brand": "vivo"
+    },
+    {
+        "keyword": "REDMI+K90 12+256G",
+        "min_price": 1390,
+        "max_price": 1990,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90 12+512G",
+        "min_price": 1730,
+        "max_price": 2330,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90 16+256G",
+        "min_price": 1660,
+        "max_price": 2260,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90 16+512G",
+        "min_price": 2235,
+        "max_price": 2835,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90 16+1TB",
+        "min_price": 2685,
+        "max_price": 3285,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90+Pro+Max 12+256G",
+        "min_price": 2615,
+        "max_price": 3215,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90+Pro+Max 12+512G",
+        "min_price": 3165,
+        "max_price": 3765,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90+Pro+Max 16+512G",
+        "min_price": 3435,
+        "max_price": 4035,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K90+Pro+Max 16+1TB",
+        "min_price": 4030,
+        "max_price": 4630,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+至尊版 12+256G",
+        "min_price": 985,
+        "max_price": 1585,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+至尊版 12+512G",
+        "min_price": 1300,
+        "max_price": 1900,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+至尊版 16+256G",
+        "min_price": 1200,
+        "max_price": 1800,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+至尊版 16+512G",
+        "min_price": 1610,
+        "max_price": 2210,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+至尊版 16+1TB",
+        "min_price": 2010,
+        "max_price": 2610,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80 12+256G",
+        "min_price": 700,
+        "max_price": 1300,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80 12+512G",
+        "min_price": 1010,
+        "max_price": 1610,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80 16+256G",
+        "min_price": 800,
+        "max_price": 1400,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80 16+512G",
+        "min_price": 1300,
+        "max_price": 1900,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80 16+1TB",
+        "min_price": 1630,
+        "max_price": 2230,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+Pro 12+256G",
+        "min_price": 1470,
+        "max_price": 2070,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+Pro 12+512G",
+        "min_price": 1520,
+        "max_price": 2120,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+Pro 16+512G",
+        "min_price": 1790,
+        "max_price": 2390,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "REDMI+K80+Pro 16+1TB",
+        "min_price": 2135,
+        "max_price": 2735,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "Redmi+Note14+Pro 12+512G",
+        "min_price": 430,
+        "max_price": 1030,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "Redmi+Note14+Pro+ 12+256G",
+        "min_price": 440,
+        "max_price": 1040,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "Redmi+Note14+Pro+ 12+512G",
+        "min_price": 540,
+        "max_price": 1140,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "Redmi+Note14+Pro+ 16+512G",
+        "min_price": 710,
+        "max_price": 1310,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17 12+256G",
+        "min_price": 2935,
+        "max_price": 3535,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17 12+512G",
+        "min_price": 3245,
+        "max_price": 3845,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17 16+512G",
+        "min_price": 3335,
+        "max_price": 3935,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17 16+1TB",
+        "min_price": 3685,
+        "max_price": 4285,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17+Pro 12+256G",
+        "min_price": 3465,
+        "max_price": 4065,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17+Pro 12+512G",
+        "min_price": 3765,
+        "max_price": 4365,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17+Pro 16+512G",
+        "min_price": 4040,
+        "max_price": 4640,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17+Pro 16+1TB",
+        "min_price": 4130,
+        "max_price": 4730,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17+Pro+Max 12+512G",
+        "min_price": 4430,
+        "max_price": 5030,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17+Pro+Max 16+512G",
+        "min_price": 4720,
+        "max_price": 5320,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米17+Pro+Max 16+1TB",
+        "min_price": 5250,
+        "max_price": 5850,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15 12+256G",
+        "min_price": 1860,
+        "max_price": 2460,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15 12+512G",
+        "min_price": 2130,
+        "max_price": 2730,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15 16+512G",
+        "min_price": 2250,
+        "max_price": 2850,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15 16+1TB",
+        "min_price": 2650,
+        "max_price": 3250,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+钻石限定版 16+1TB",
+        "min_price": 4300,
+        "max_price": 4900,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+Pro 12+256G",
+        "min_price": 2550,
+        "max_price": 3150,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+Pro 16+512G",
+        "min_price": 2750,
+        "max_price": 3350,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+Pro 16+1TB",
+        "min_price": 3350,
+        "max_price": 3950,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+Ultra 12+256G",
+        "min_price": 3580,
+        "max_price": 4180,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+Ultra 16+512G",
+        "min_price": 3930,
+        "max_price": 4530,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+Ultra 16+1TB",
+        "min_price": 4830,
+        "max_price": 5430,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15+Ultra+双卫星版 16+1TB",
+        "min_price": 6130,
+        "max_price": 6730,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15S+Pro 16+512G",
+        "min_price": 3735,
+        "max_price": 4335,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米15S+Pro 16+1TB",
+        "min_price": 5380,
+        "max_price": 5980,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米14 12+256G",
+        "min_price": 1290,
+        "max_price": 1890,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米14 16+512G",
+        "min_price": 1490,
+        "max_price": 2090,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "小米14 16+1TB",
+        "min_price": 1710,
+        "max_price": 2310,
+        "brand": "xiaomi"
+    },
+    {
+        "keyword": "荣耀400 12+256G",
+        "min_price": 990,
+        "max_price": 1590,
+        "brand": "honor"
+    },
+    {
+        "keyword": "荣耀400 12+512G",
+        "min_price": 1260,
+        "max_price": 1860,
+        "brand": "honor"
+    },
+    {
+        "keyword": "荣耀400 16+512G",
+        "min_price": 1470,
+        "max_price": 2070,
+        "brand": "honor"
+    },
+    {
+        "keyword": "荣耀400+Pro 12+256G",
+        "min_price": 1940,
+        "max_price": 2540,
+        "brand": "honor"
+    },
+    {
+        "keyword": "荣耀400+Pro 12+512G",
+        "min_price": 2215,
+        "max_price": 2815,
+        "brand": "honor"
+    },
+    {
+        "keyword": "荣耀400+Pro 16+512G",
+        "min_price": 2295,
+        "max_price": 2895,
+        "brand": "honor"
+    },
+    {
+        "keyword": "荣耀400+Pro 16+1TB",
+        "min_price": 3035,
+        "max_price": 3635,
+        "brand": "honor"
+    },
+    {
+        "keyword": "Magic7 12+256G",
+        "min_price": 2285,
+        "max_price": 2885,
+        "brand": "honor"
+    },
+    {
+        "keyword": "Magic7 12+512G",
+        "min_price": 2535,
+        "max_price": 3135,
+        "brand": "honor"
+    },
+    {
+        "keyword": "Magic7 16+512G",
+        "min_price": 2635,
+        "max_price": 3235,
+        "brand": "honor"
+    },
+    {
+        "keyword": "Magic7 16+1TB",
+        "min_price": 3085,
+        "max_price": 3685,
+        "brand": "honor"
+    },
+    {
+        "keyword": "Magic7+Pro 12+256G",
+        "min_price": 2885,
+        "max_price": 3485,
+        "brand": "honor"
+    },
+    {
+        "keyword": "Magic7+Pro 16+512G",
+        "min_price": 3285,
+        "max_price": 3885,
+        "brand": "honor"
+    },
+    {
+        "keyword": "Magic7+Pro 16+1TB",
+        "min_price": 4430,
+        "max_price": 5030,
+        "brand": "honor"
+    },
+    {
+        "keyword": "X70 8+256G",
+        "min_price": 445,
+        "max_price": 1045,
+        "brand": "honor"
+    },
+    {
+        "keyword": "X70 12+256G",
+        "min_price": 570,
+        "max_price": 1170,
+        "brand": "honor"
+    },
+    {
+        "keyword": "X70 12+512G",
+        "min_price": 735,
+        "max_price": 1335,
+        "brand": "honor"
+    },
+    {
+        "keyword": "X70i 12+512G",
+        "min_price": 540,
+        "max_price": 1140,
+        "brand": "honor"
+    },
+    {
+        "keyword": "X70i 12+512G",
+        "min_price": 445,
+        "max_price": 1045,
+        "brand": "honor"
+    }
+]

@@ -1,0 +1,518 @@
+[
+    {
+        "keyword": "pura70+ultra+12GB+512GB",
+        "min_price": 3200,
+        "max_price": 4000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "mate70+pro+12GB+256GB",
+        "min_price": 2900,
+        "max_price": 3500,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "pura+70+12GB+512GB",
+        "min_price": 2900,
+        "max_price": 3500,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+pro+256GB",
+        "min_price": 1200,
+        "max_price": 1750,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+pro+512GB",
+        "min_price": 1200,
+        "max_price": 1750,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+pro+256GB",
+        "min_price": 1600,
+        "max_price": 2150,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+ultra+256GB",
+        "min_price": 1200,
+        "max_price": 1750,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+ultra+512GB",
+        "min_price": 1900,
+        "max_price": 2450,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+12+ultra+512GB",
+        "min_price": 1000,
+        "max_price": 1300,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80 12+256G",
+        "min_price": 3585,
+        "max_price": 4185,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80 12+512G",
+        "min_price": 4085,
+        "max_price": 4685,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80 16+512G",
+        "min_price": 4380,
+        "max_price": 4980,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+Pro 12+256G",
+        "min_price": 5235,
+        "max_price": 5835,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+Pro 12+512G",
+        "min_price": 5610,
+        "max_price": 6210,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+Pro 16+512G",
+        "min_price": 6230,
+        "max_price": 6830,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+Pro 16+1TB",
+        "min_price": 7230,
+        "max_price": 7830,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+Pro+Max 16+512G",
+        "min_price": 7680,
+        "max_price": 8580,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+Pro+Max 16+1TB",
+        "min_price": 8780,
+        "max_price": 9680,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+RS 20+512G",
+        "min_price": 11600,
+        "max_price": 12500,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+80+RS 20+1TB",
+        "min_price": 12600,
+        "max_price": 13500,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70 12+256G",
+        "min_price": 3005,
+        "max_price": 3605,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70 12+512G",
+        "min_price": 3505,
+        "max_price": 4405,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70 12+1TB",
+        "min_price": 4280,
+        "max_price": 5180,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Pro 12+256G",
+        "min_price": 3335,
+        "max_price": 3935,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Pro 12+512G",
+        "min_price": 4080,
+        "max_price": 4980,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Pro 12+1TB",
+        "min_price": 5030,
+        "max_price": 5930,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Pro+ 16+512G",
+        "min_price": 4780,
+        "max_price": 5680,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Pro+ 16+1TB",
+        "min_price": 5780,
+        "max_price": 6680,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+RS 16+512G",
+        "min_price": 9500,
+        "max_price": 10400,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+RS 16+1TB",
+        "min_price": 10600,
+        "max_price": 11500,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Air 12+256G",
+        "min_price": 2885,
+        "max_price": 3485,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Air 12+512G",
+        "min_price": 3310,
+        "max_price": 3910,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Air 16+256G",
+        "min_price": 2980,
+        "max_price": 3580,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+70+Air 16+512G",
+        "min_price": 3000,
+        "max_price": 5000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+60 12+512G",
+        "min_price": 3035,
+        "max_price": 3635,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XTs 16+512G",
+        "min_price": 18500,
+        "max_price": 19400,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XTs 16+1TB",
+        "min_price": 20400,
+        "max_price": 21300,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XT 16+256G",
+        "min_price": 10000,
+        "max_price": 50000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XT 16+512G",
+        "min_price": 15500,
+        "max_price": 16400,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XT 16+1TB",
+        "min_price": 16000,
+        "max_price": 16900,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X7 12+256G",
+        "min_price": 10000,
+        "max_price": 50000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X7 12+512G",
+        "min_price": 10000,
+        "max_price": 50000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X7 16+512G",
+        "min_price": 10000,
+        "max_price": 50000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X7 16+1TB",
+        "min_price": 10000,
+        "max_price": 50000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X6 12+256G",
+        "min_price": 8700,
+        "max_price": 9300,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X6 12+512G",
+        "min_price": 9700,
+        "max_price": 10600,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X6 16+512G",
+        "min_price": 11200,
+        "max_price": 12100,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X6 16+1TB",
+        "min_price": 12200,
+        "max_price": 13100,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X5 12+256G",
+        "min_price": 6400,
+        "max_price": 7000,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X5 12+512G",
+        "min_price": 6800,
+        "max_price": 7700,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+X5 16+512G",
+        "min_price": 6800,
+        "max_price": 9700,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XTs+16+512G",
+        "min_price": 19099,
+        "max_price": 19649,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XTs+16+1TB",
+        "min_price": 21099,
+        "max_price": 21649,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XT 16+512G",
+        "min_price": 21099,
+        "max_price": 21649,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Mate+XT 16+1TB",
+        "min_price": 23099,
+        "max_price": 23649,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80 12+256G",
+        "min_price": 2785,
+        "max_price": 3385,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80 12+512G",
+        "min_price": 3035,
+        "max_price": 3635,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80 12+1TB",
+        "min_price": 4080,
+        "max_price": 4680,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80+Pro 12+256G",
+        "min_price": 3485,
+        "max_price": 4085,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80+Pro 12+512G",
+        "min_price": 3960,
+        "max_price": 4560,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80+Pro 12+1TB",
+        "min_price": 4880,
+        "max_price": 5480,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80+Pro+ 16+512G",
+        "min_price": 4930,
+        "max_price": 5530,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80+Pro+ 16+1TB",
+        "min_price": 5880,
+        "max_price": 6480,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80+Ultra 16+512G",
+        "min_price": 5820,
+        "max_price": 6420,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+80+Ultra 16+1TB",
+        "min_price": 6800,
+        "max_price": 7400,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+70 12+512G",
+        "min_price": 2655,
+        "max_price": 3255,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+70+北斗卫星消息版 12+512G",
+        "min_price": 2755,
+        "max_price": 3355,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+70+Pro 12+512G",
+        "min_price": 3035,
+        "max_price": 3635,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+70+Pro+ 16+512G",
+        "min_price": 3580,
+        "max_price": 4180,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+70+Ultra 12+512G",
+        "min_price": 3285,
+        "max_price": 3885,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+70+Ultra 16+512G",
+        "min_price": 4180,
+        "max_price": 4780,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+70+Ultra 16+1TB",
+        "min_price": 4930,
+        "max_price": 5530,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+X 12+512G",
+        "min_price": 5530,
+        "max_price": 6130,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+X+典藏版 16+512G",
+        "min_price": 6480,
+        "max_price": 7080,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "Pura+X+典藏版 16+1TB",
+        "min_price": 7550,
+        "max_price": 8150,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14 256G",
+        "min_price": 1040,
+        "max_price": 1940,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14 512G",
+        "min_price": 1540,
+        "max_price": 2440,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+Pro 256G",
+        "min_price": 1390,
+        "max_price": 1990,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+Pro 512G",
+        "min_price": 1770,
+        "max_price": 2370,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+Ultra 256G",
+        "min_price": 1920,
+        "max_price": 2520,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+Ultra 512G",
+        "min_price": 2035,
+        "max_price": 2635,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+14+Ultra 1TB",
+        "min_price": 3000,
+        "max_price": 3600,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+13 256G",
+        "min_price": 970,
+        "max_price": 1870,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+13 512G",
+        "min_price": 1220,
+        "max_price": 2120,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+13+Pro 256G",
+        "min_price": 1220,
+        "max_price": 1820,
+        "brand": "huawei"
+    },
+    {
+        "keyword": "nova+13+Pro 512G",
+        "min_price": 1410,
+        "max_price": 2010,
+        "brand": "huawei"
+    }
+]
