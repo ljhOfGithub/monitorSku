@@ -16,35 +16,37 @@ import signal
 import sys
 from urllib.parse import quote
 
+# 修改：去掉了本地chrome目录列表，改为空配置
+chrome_dirs = []
+root_dir = "C:\\data"
+user_dir = "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2"
 class JDSKUMonitor:
-    def __init__(self, keywords_config_file, cookies_source="browser", cookies_file="cookies.txt", 
-                 user_data_dirs=None, webhook_urls=None, alert_webhook_url=None):
+    def __init__(self, keywords_config_file, webhook_urls=None, alert_webhook_url=None):
         """
         初始化监控器
         
         Args:
             keywords_config_file: 关键词配置JSON文件路径
-            cookies_source: cookies来源，可选 "browser" 或 "file"
-            cookies_file: cookies文件路径（当cookies_source为"file"时使用）
-            user_data_dirs: 浏览器用户数据目录列表（当cookies_source为"browser"时使用）
             webhook_urls: 飞书机器人webhook URL列表
             alert_webhook_url: 警报机器人webhook URL
         """
         self.keywords_config_file = keywords_config_file
-        self.cookies_source = cookies_source
-        self.cookies_file = cookies_file
-        self.user_data_dirs = user_data_dirs or ["./chrome7", "./chrome8"]
+        # 固定使用内存浏览器模式，不再从本地读取cookies
+        self.cookies_source = "none"
         self.webhook_urls = webhook_urls or []
         self.alert_webhook_url = alert_webhook_url
-        self.all_skus_dir = "all_skus"
-        self.new_skus_records_dir = "new_skus_records"
-        self.monitor_results_file = "monitor_results.json"
         
+        # 使用 root_dir 格式配置路径
+        self.all_skus_dir = os.path.join(root_dir, "all_skus")
+        self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
+        self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
+        
+        self.monitor_type = "已赚钱类"
         # 先初始化监控结果，防止后续访问失败
         self.init_monitor_results()
         
-        # 根据配置获取cookies
-        self.cookies_dicts = self.load_cookies()
+        # 不再加载外部cookies
+        self.cookies_dicts = [{}]
         
         # 创建数据文件夹
         self.create_directories()
@@ -57,13 +59,16 @@ class JDSKUMonitor:
         self.is_shutting_down = False  # 标记是否正在关闭
         self.current_monitor_data = {}  # 存储当前监控周期的数据
         self.has_sent_summary = False  # 标记是否已发送总结报告
+
+        # 优化：增加内存缓存，避免频繁扫描磁盘
+        self.cached_historical_skus = set()
         
         # 设置信号处理
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         
-        # 创建线程池执行器
-        self.executor = ThreadPoolExecutor(max_workers=len(self.user_data_dirs))
+        # 创建线程池执行器 - 使用默认并发数
+        self.executor = ThreadPoolExecutor(max_workers=5)
     
     def load_keywords_config(self):
         """从JSON文件加载关键词配置"""
@@ -82,94 +87,15 @@ class JDSKUMonitor:
     
     def load_cookies(self):
         """根据配置加载cookies"""
-        if self.cookies_source == "browser":
-            return self.load_cookies_from_browsers(self.user_data_dirs)
-        elif self.cookies_source == "file":
-            return [self.load_cookies_from_file(self.cookies_file)]
-        else:
-            print(f"❌ 不支持的cookies来源: {self.cookies_source}")
-            return [{}]
+        return [{}]
     
     def load_cookies_from_browsers(self, user_data_dirs):
         """从多个浏览器用户数据目录获取cookies"""
-        cookies_dicts = []
-        
-        for i, user_data_dir in enumerate(user_data_dirs, 1):
-            if not os.path.exists(user_data_dir):
-                print(f"❌ 浏览器用户数据目录不存在: {user_data_dir}")
-                cookies_dicts.append({})
-                continue
-            
-            try:
-                with sync_playwright() as p:
-                    # 启动浏览器，使用用户数据目录
-                    browser = p.chromium.launch_persistent_context(
-                        user_data_dir=user_data_dir,
-                        headless=True,
-                        args=[
-                            '--disable-blink-features=AutomationControlled',
-                            '--disable-features=VizDisplayCompositor',
-                            '--disable-background-timer-throttling',
-                            '--disable-backgrounding-occluded-windows',
-                            '--disable-renderer-backgrounding'
-                        ]
-                    )
-                    
-                    # 创建一个新页面来获取cookies
-                    page = browser.new_page()
-                    
-                    # 访问京东商城页面来获取相关cookies
-                    page.goto("https://mall.jd.com", timeout=30000, wait_until='domcontentloaded')
-                    
-                    # 获取所有cookies
-                    all_cookies = browser.cookies()
-                    
-                    # 过滤出京东相关的cookies
-                    jd_cookies = {}
-                    for cookie in all_cookies:
-                        if 'jd.com' in cookie['domain'] or 'jd.com' in cookie.get('domain', ''):
-                            jd_cookies[cookie['name']] = cookie['value']
-                    print('all_cookies')
-                    print(all_cookies)
-                    print('\njd_cookies')
-                    print(jd_cookies)
-                    browser.close()
-                    
-                    print(f"✅ 从浏览器 {i} 加载 {len(jd_cookies)} 个京东相关cookies")
-                    
-                    # 打印关键cookies信息
-                    if 'pt_key' in jd_cookies:
-                        print(f"🔑 浏览器 {i} pt_key: {jd_cookies['pt_key'][:20]}...")
-                    if 'pt_pin' in jd_cookies:
-                        print(f"🔑 浏览器 {i} pt_pin: {jd_cookies['pt_pin']}")
-                    
-                    cookies_dicts.append(jd_cookies)
-                    
-            except Exception as e:
-                print(f"❌ 从浏览器 {i} 加载cookies时出错: {e}")
-                cookies_dicts.append({})
-        
-        return cookies_dicts
+        return [{}]
     
     def load_cookies_from_file(self, cookies_file):
         """从文件加载cookies字符串并解析为字典"""
-        if not os.path.exists(cookies_file):
-            print(f"❌ Cookies文件不存在: {cookies_file}")
-            return {}
-        
-        try:
-            with open(cookies_file, 'r', encoding='utf-8') as f:
-                cookies_string = f.read().strip()
-            
-            if not cookies_string:
-                print("❌ Cookies文件为空")
-                return {}
-            
-            return self.parse_cookies_string(cookies_string)
-            
-        except Exception as e:
-            print(f"❌ 读取cookies文件时出错: {e}")
-            return {}
+        return {}
     
     def parse_cookies_string(self, cookies_string):
         """解析cookies字符串为字典"""
@@ -214,7 +140,7 @@ class JDSKUMonitor:
         # 只有在没有发送总结报告时才发送
         if not self.has_sent_summary and hasattr(self, 'current_monitor_data') and self.current_monitor_data:
             print("📤 发送未完成的监控总结通知...")
-            self.send_monitor_summary_notification(self.current_monitor_data)
+            self.send_alert_notification(self.current_monitor_data)
             self.has_sent_summary = True
         
         # self.save_monitor_results()
@@ -228,21 +154,16 @@ class JDSKUMonitor:
     
     def create_directories(self):
         """创建所有必要的文件夹"""
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
         directories = [
-            "monitor_data",
-            "monitor_logs", 
-            "search_pages",
-            "product_details",
-            "new_skus_records",
+            os.path.join(root_dir, "monitor_data"),
+            os.path.join(root_dir, "monitor_logs"), 
+            # os.path.join(root_dir, "search_pages"),
+            os.path.join(root_dir, "product_details"),
+            os.path.join(root_dir, "new_skus_records"),
             self.all_skus_dir,
         ]
-        
-        # 如果使用浏览器模式，确保chrome目录存在
-        if self.cookies_source == "browser":
-            for user_data_dir in self.user_data_dirs:
-                if not os.path.exists(user_data_dir):
-                    os.makedirs(user_data_dir)
-                    print(f"📁 创建文件夹: {user_data_dir}")
         
         for directory in directories:
             if not os.path.exists(directory):
@@ -270,80 +191,103 @@ class JDSKUMonitor:
                 try:
                     with open(filepath, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        skus = data.get('skus', [])
+                        skus = data.get('new_skus', [])
                         all_skus.update(skus)
                 except Exception as e:
                     print(f"❌ 加载SKU文件 {filename} 时出错: {e}")
-        print(f"📁 已加载 {len(all_skus)} 个现有SKU")
+        # print(f"📁 已加载 {len(all_skus)} 个现有SKU")
         return all_skus
     
     def save_keyword_skus(self, keyword, skus, timestamp):
-        """保存关键词的SKU到文件"""
+        """保存关键词的SKU到文件 - 优化版：按关键词合并，不带时间戳"""
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-        filename = f"{safe_keyword}_{timestamp}.json"
+        filename = f"{safe_keyword}_all_history.json"
         filepath = os.path.join(self.all_skus_dir, filename)
+        
+        existing_skus = set()
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    old_data = json.load(f)
+                    existing_skus = set(old_data.get('skus', []))
+            except:
+                pass
+        
+        # 合并SKU
+        all_skus = existing_skus.union(set(skus))
         
         data = {
             'keyword': keyword,
-            'skus': list(skus),
-            'search_time': datetime.now().isoformat(),
-            'timestamp': timestamp,
-            'total_skus': len(skus)
+            'skus': list(all_skus),
+            'last_update_time': datetime.now().isoformat(),
+            'total_skus': len(all_skus)
         }
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        # print(f"💾 关键词 '{keyword}' 的SKU已保存: {filename}")
+        # print(f"💾 关键词 '{keyword}' 的SKU已更新合并: {filename}")
     
     def save_new_skus_record(self, keyword_config, new_skus, timestamp):
-        """保存新发现的SKU记录（即使没有找到）"""
+        """保存新发现的SKU记录 - 优化版：按配置合并，不带时间戳"""
         keyword = keyword_config['keyword']
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
+        brand = keyword_config.get('brand', 'default')
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         
-        if min_price > 0 or max_price > 0:
-            filename = f"new_skus_{safe_keyword}_{min_price}_{max_price}_{timestamp}.json"
-        else:
-            filename = f"new_skus_{safe_keyword}_{timestamp}.json"
+        filename = f"new_skus_{safe_keyword}_{brand}_{min_price}_{max_price}.json"
+        filepath = os.path.join(self.new_skus_records_dir, filename)
         
-        filepath = os.path.join("new_skus_records", filename)
+        existing_new_skus = set()
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    old_data = json.load(f)
+                    existing_new_skus = set(old_data.get('new_skus', []))
+            except:
+                pass
+
+        # 合并新发现的SKU
+        all_new_skus = existing_new_skus.union(set(new_skus))
         
         data = {
             'keyword': keyword,
+            'brand': brand,
             'min_price': min_price,
             'max_price': max_price,
-            'search_time': datetime.now().isoformat(),
-            'timestamp': timestamp,
-            'new_skus_count': len(new_skus),
-            'new_skus': list(new_skus),
-            'has_new_skus': len(new_skus) > 0
+            'last_found_time': datetime.now().isoformat(),
+            'new_skus_count': len(all_new_skus),
+            'new_skus': list(all_new_skus),
+            'has_new_skus': len(all_new_skus) > 0
         }
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        # print(f"💾 新SKU记录已保存: {filename}")
+        # print(f"💾 新SKU记录已更新合并: {filename}")
     
     def get_keyword_historical_skus(self, keyword):
-        """获取关键词的历史SKU（扫描所有相关文件）"""
-        safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-        historical_skus = set()
+        # """获取关键词的历史SKU（扫描所有相关文件）"""
+        # safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
+        # historical_skus = set()
         
-        for filename in os.listdir(self.all_skus_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(self.all_skus_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        skus = data.get('skus', [])
+        # for filename in os.listdir(self.all_skus_dir):
+        #     if filename.endswith(".json"):
+        #         filepath = os.path.join(self.all_skus_dir, filename)
+        #         try:
+        #             with open(filepath, 'r', encoding='utf-8') as f:
+        #                 data = json.load(f)
+        #                 skus = data.get('skus', [])
 
-                        historical_skus.update(skus)
-                except Exception as e:
-                    print(f"❌ 加载历史SKU文件 {filename} 时出错: {e}")
+        #                 historical_skus.update(skus)
+        #         except Exception as e:
+        #             print(f"❌ 加载历史SKU文件 {filename} 时出错: {e}")
         
-        return historical_skus
+        # return historical_skus
+        
+        # 优化：不再每次调用都全盘扫描，直接从内存缓存获取
+        return self.cached_historical_skus
     
     def save_search_page(self, keyword, min_price, max_price, html_content, timestamp):
         """保存搜索页面HTML"""
@@ -354,47 +298,79 @@ class JDSKUMonitor:
         else:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
-        filepath = os.path.join("search_pages", filename)
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
+        search_pages_dir = os.path.join(root_dir, "search_pages")
+        # if not os.path.exists(search_pages_dir):
+        #     os.makedirs(search_pages_dir)
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+        filepath = os.path.join(search_pages_dir, filename)
+        
+        # with open(filepath, 'w', encoding='utf-8') as f:
+        #     f.write(html_content)
         
         # print(f"💾 搜索页面已保存: {filename}")
         return filepath
     
     def save_product_details(self, keyword_config, product_links, all_skus, new_skus, timestamp):
-        """保存商品详细信息"""
+        """保存商品详细信息 - 优化版：按配置合并，不带时间戳"""
         keyword = keyword_config['keyword']
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
+        brand = keyword_config.get('brand', 'default')
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         
-        # 保存商品详情JSON
-        if min_price > 0 or max_price > 0:
-            details_filename = f"products_{safe_keyword}_{min_price}_{max_price}_{timestamp}.json"
-        else:
-            details_filename = f"products_{safe_keyword}_{timestamp}.json"
+        details_filename = f"products_{safe_keyword}_{brand}_{min_price}_{max_price}.json"
         
-        details_filepath = os.path.join("product_details", details_filename)
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
+        product_details_dir = os.path.join(root_dir, "product_details")
+        if not os.path.exists(product_details_dir):
+            os.makedirs(product_details_dir)
+        
+        details_filepath = os.path.join(product_details_dir, details_filename)
+        
+        existing_products = {}
+        existing_all_skus = set()
+        existing_new_skus_list = set()
+        
+        if os.path.exists(details_filepath):
+            try:
+                with open(details_filepath, 'r', encoding='utf-8') as f:
+                    old_data = json.load(f)
+                    # 将旧商品转为字典方便去重合并（按sku_id）
+                    for p in old_data.get('products', []):
+                        existing_products[p['sku_id']] = p
+                    existing_all_skus = set(old_data.get('all_skus', []))
+                    existing_new_skus_list = set(old_data.get('new_skus_list', []))
+            except:
+                pass
+
+        # 合并新抓取的数据
+        for p in product_links:
+            existing_products[p['sku_id']] = p
+        
+        merged_all_skus = existing_all_skus.union(set(all_skus))
+        merged_new_skus_list = existing_new_skus_list.union(set(new_skus))
         
         details_data = {
             'keyword': keyword,
+            'brand': brand,
             'min_price': min_price,
             'max_price': max_price,
-            'search_time': datetime.now().isoformat(),
-            'timestamp': timestamp,
-            'total_products': len(product_links),
-            'total_skus': len(all_skus),
-            'new_skus': len(new_skus),
-            'products': product_links,
-            'all_skus': list(all_skus),
-            'new_skus_list': list(new_skus)
+            'last_update_time': datetime.now().isoformat(),
+            'total_products': len(existing_products),
+            'total_skus': len(merged_all_skus),
+            'new_skus_count': len(merged_new_skus_list),
+            'products': list(existing_products.values()),
+            'all_skus': list(merged_all_skus),
+            'new_skus_list': list(merged_new_skus_list)
         }
         
         with open(details_filepath, 'w', encoding='utf-8') as f:
             json.dump(details_data, f, ensure_ascii=False, indent=2)
         
-        # print(f"💾 商品详情已保存: {details_filename}")
+        # print(f"💾 商品详情已更新合并: {details_filename}")
         return product_links
     
     def load_monitor_results(self):
@@ -468,7 +444,8 @@ class JDSKUMonitor:
             print("❌ 未配置警报webhook URL")
             return False
         
-        alert_message = f"🚨 京东监控系统警报\n\n{message}"
+        # alert_message = f"🚨 京东监控系统警报\n\n{message}"
+        alert_message = f"{message}"
         return self.send_feishu_notification(alert_message, self.alert_webhook_url)
     
     def print_new_skus_to_console(self, keyword_config, new_products):
@@ -509,7 +486,8 @@ class JDSKUMonitor:
                 message += f"💰 价格范围: {min_price}-{max_price}元\n"
             message += f"🆕 新SKU: {sku}\n"
             message += f"📦 标题: {title}\n"
-            message += f"🔗 链接: https://item.m.jd.com/product/{sku}.html\n"
+            message += f"💰 支付链接: https://trade.m.jd.com/checkout?commlist={sku},,1#/index\n"
+            message += f"🔗 详情链接: https://item.m.jd.com/product/{sku}.html\n"
             message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             
             # print(f"📤 立即发送新SKU通知: {sku}")
@@ -534,7 +512,7 @@ class JDSKUMonitor:
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
         
-        message = f"🔔 京东商品监控通知\n"
+        message = f"⚠️⚠️⚠️ {self.monitor_type}京东商品监控通知\n"
         message += f"📊 关键词: {keyword}\n"
         if min_price > 0 or max_price > 0:
             message += f"💰 价格范围: {min_price}-{max_price}元\n"
@@ -542,12 +520,13 @@ class JDSKUMonitor:
         message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         
         # 添加所有新商品链接和详情
-        message += "📦 所有新商品详情:\n"
+        # message += "📦 所有新商品详情:\n"
         for i, product in enumerate(new_products, 1):
             sku = product['sku_id']
             title = product.get('title', '未知')
             
-            message += f"{i}. 链接: https://item.m.jd.com/product/{sku}.html\n"
+            message += f"{i}. 支付链接: https://trade.m.jd.com/checkout?commlist={sku},,1#/index\n"
+            message += f"     详情链接: https://item.m.jd.com/product/{sku}.html\n"
             message += f"标题: {title}\n"
             message += f"SKU: {sku}\n"
             message += "\n"
@@ -567,109 +546,39 @@ class JDSKUMonitor:
     
     def check_cookies_validity(self, page, browser_index=1):
         """检查cookies是否过期"""
-        try:
-            # 获取页面内容
-            page_content = page.content()
-            
-            # 检查登录状态
-            is_logged_in = self.check_login_status(page_content)
-            
-            if not is_logged_in:
-                print(f"❌ 浏览器 {browser_index} Cookies已过期或无效，未检测到登录状态")
-                
-                # 发送警报通知
-                alert_msg = f"京东监控系统检测到浏览器 {browser_index} Cookies已过期或无效\n\n"
-                alert_msg += f"⏰ 检测时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                
-                if self.cookies_source == "browser":
-                    alert_msg += f"📝 请重新登录京东并确保浏览器保存登录状态\n"
-                    alert_msg += f"💡 建议手动访问 https://mall.jd.com 确认登录状态"
-                else:
-                    alert_msg += f"📝 请更新cookies文件: {self.cookies_file}\n"
-                    alert_msg += f"💡 建议重新登录京东获取最新cookies"
-                
-                # self.send_alert_notification(alert_msg)
-                return False
-            
-            return True
-                
-        except Exception as e:
-            print(f"❌ 检查浏览器 {browser_index} cookies时出错: {e}")
-            
-            # 发送异常警报
-            alert_msg = f"京东监控系统浏览器 {browser_index} Cookies检查异常\n\n"
-            alert_msg += f"⏰ 异常时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            alert_msg += f"❌ 错误信息: {str(e)}\n"
-            alert_msg += f"🔧 请检查网络连接和cookies配置"
-            
-            # self.send_alert_notification(alert_msg)
-            return False
+        return True
     
     def create_browser_context(self, playwright, browser_index=1):
         """创建浏览器上下文"""
-        if self.cookies_source == "browser":
-            # 使用持久化浏览器上下文
-            user_data_dir = self.user_data_dirs[browser_index - 1] if browser_index <= len(self.user_data_dirs) else self.user_data_dirs[0]
-            browser = playwright.chromium.launch_persistent_context(
-                user_data_dir=user_data_dir,
-                headless=True,
-                args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
-                ],
-                viewport={'width': 1920, 'height': 1080},
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-            )
-        else:
-            # 使用普通浏览器上下文，手动设置cookies
-            browser = playwright.chromium.launch(
-                headless=True,
-                args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
-                ]
-            )
-            
-            context = browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                viewport={'width': 1920, 'height': 1080},
-                extra_http_headers={
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                }
-            )
-            
-            # 设置cookies
-            cookies_dict = self.cookies_dicts[0] if self.cookies_dicts else {}
-            if cookies_dict:
-                cookies_to_set = []
-                for name, value in cookies_dict.items():
-                    cookies_to_set.append({
-                        'name': name,
-                        'value': value,
-                        'domain': '.jd.com',
-                        'path': '/'
-                    })
-                
-                context.add_cookies(cookies_to_set)
-                # print(f"🔐 已设置 {len(cookies_to_set)} 个cookies")
-            
-            browser = context
+        # 统一使用无状态浏览器模式
+        browser = playwright.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--disable-features=VizDisplayCompositor',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
+            ]
+        )
+        
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080},
+            extra_http_headers={
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            }
+        )
         
         # 隐藏自动化特征
-        browser.add_init_script("""
+        context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined,
             });
         """)
         
-        return browser
+        return context
     
     def remove_hot_sale_products(self, html_content):
         """从HTML中移除热销商品部分"""
@@ -780,8 +689,8 @@ class JDSKUMonitor:
         
         with sync_playwright() as p:
             # 使用浏览器上下文
-            browser = self.create_browser_context(p, browser_index)
-            page = browser.new_page()
+            context = self.create_browser_context(p, browser_index)
+            page = context.new_page()
             
             try:
                 # print(f"🔍 浏览器 {browser_index} 搜索关键词: {keyword} (价格: {min_price}-{max_price}元)\n")
@@ -791,11 +700,6 @@ class JDSKUMonitor:
                 #     print()
                     
                 page.goto(search_url, timeout=60000, wait_until='networkidle')
-                
-                # 检查cookies是否有效
-                if not self.check_cookies_validity(page, browser_index):
-                    print(f"❌ 浏览器 {browser_index} Cookies已过期，请更新cookies配置")
-                    return []
                 
                 # 等待商品列表加载
                 try:
@@ -839,7 +743,7 @@ class JDSKUMonitor:
                 print(f"❌ 浏览器 {browser_index} 搜索关键词 '{keyword}' 搜索URL: {search_url} 时出错: {e}")
                 return []
             finally:
-                browser.close()
+                context.close()
     
     def process_single_keyword(self, keyword_config, timestamp, browser_index=1):
         """处理单个关键词并立即发送通知"""
@@ -880,13 +784,13 @@ class JDSKUMonitor:
         new_skus_for_keyword = all_skus - historical_skus
         new_products_for_keyword = [p for p in product_links if p['sku_id'] in new_skus_for_keyword]
         
-        # 保存当前搜索的SKU
+        # 保存当前搜索的SKU (优化后的合并保存)
         self.save_keyword_skus(keyword, all_skus, timestamp)
         
-        # 保存新SKU记录（即使没有找到）
+        # 保存新SKU记录（即使没有找到）(优化后的合并保存)
         self.save_new_skus_record(keyword_config, new_skus_for_keyword, timestamp)
         
-        # 保存商品详细信息
+        # 保存商品详细信息 (优化后的合并保存)
         self.save_product_details(keyword_config, product_links, all_skus, new_skus_for_keyword, timestamp)
         
         # 使用关键词级别的新SKU进行通知（立即发送）
@@ -914,7 +818,7 @@ class JDSKUMonitor:
     def send_monitor_summary_notification(self, monitor_data):
         """发送监控总结通知"""
         if not monitor_data.get('total_new_skus'):
-            self.send_to_all_webhooks("ℹ️  本轮监控没有发现新SKU")
+            self.send_alert_notification(f"ℹ️  {self.monitor_type}本轮监控没有发现新SKU")
             print("ℹ️  没有新SKU，不发送总结通知")
             return
         
@@ -925,21 +829,23 @@ class JDSKUMonitor:
                 keyword_details_with_new_skus[keyword] = details
         
         if not keyword_details_with_new_skus:
-            self.send_to_all_webhooks("ℹ️  没有包含新SKU的关键词")
+            # self.send_to_all_webhooks(f"ℹ️  {self.monitor_type}没有包含新SKU的关键词")
+            self.send_alert_notification(f"ℹ️  {self.monitor_type}没有包含新SKU的关键词")
             print("ℹ️  没有包含新SKU的关键词，不发送总结通知")
             return
         
-        message = f"📈 监控任务完成总结\n"
-        message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        message += f"📊 处理关键词: {len(self.keywords_config)} 个\n"
+        message = f"{self.monitor_type}监控任务完成总结\n"
+        message += f"⏰ 开始时间: {monitor_data.get('process_timestamp')}\n"
+        message += f"⏰ 结束时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        # message += f"📊 处理关键词: {len(self.keywords_config)} 个\n"
         message += f"🆕 发现新SKU的关键词: {len(keyword_details_with_new_skus)} 个\n"
         message += f"🆕 总共发现新SKU: {len(monitor_data['total_new_skus'])} 个\n"
-        message += f"📁 历史SKU数量: {monitor_data.get('all_existing_skus_count', 0)} 个\n"
+        # message += f"📁 历史SKU数量: {monitor_data.get('all_existing_skus_count', 0)} 个\n"
         
         # 添加每个有新SKU的关键词的详细统计和新SKU链接
         message += "📋 发现新SKU的关键词详情:\n"
         for keyword, details in keyword_details_with_new_skus.items():
-            message += f"   - {keyword}: {len(details['new_skus'])} 个新SKU (总共: {details['total_skus']} 个)\n"
+            message += f"   - {keyword}({details['min_price']}-{details['max_price']}元): {len(details['new_skus'])}个新SKU (总共: {details['total_skus']} 个)\n"
             
             # 显示新SKU的具体链接
             if details['new_skus']:
@@ -954,12 +860,13 @@ class JDSKUMonitor:
                     
                     if product_info:
                         title = product_info.get('title', '未知商品')
-                        message += f"https://item.m.jd.com/product/{sku}.html - {title}\n"
+                        message += f"支付链接:   https://trade.m.jd.com/checkout?commlist={sku},,1#/index - {title}\n"
+                        message += f"详情页面:   https://item.m.jd.com/product/{sku}.html - {title}\n"
                     else:
                         message += f"https://item.m.jd.com/product/{sku}.html\n"
         
         print("📤 发送监控总结通知...")
-        self.send_to_all_webhooks(message)
+        self.send_feishu_notification(message, self.alert_webhook_url)
         
         # 标记已发送总结报告
         self.has_sent_summary = True
@@ -974,7 +881,7 @@ class JDSKUMonitor:
         #     return 1
         # else:
         #     return 5
-        return 0.5
+        return 1
     
     def monitor_keywords_concurrent(self):
         """并发监控所有关键词"""
@@ -993,35 +900,16 @@ class JDSKUMonitor:
         print("🕒 开始并发监控任务")
         print(f"⏰ 执行时间戳: {process_timestamp}")
         print(f"⏰ 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"🔧 使用 {len(self.cookies_dicts)} 个浏览器实例并发执行")
         print(f"📝 配置关键词: {len(self.keywords_config)} 个")
         print("="*60)
-        
-        # 检查cookies是否有效
-        valid_cookies_count = sum(1 for cookies in self.cookies_dicts if cookies)
-        if valid_cookies_count == 0:
-            print("❌ 未加载有效的cookies，无法进行监控")
-            
-            # 发送cookies缺失警报
-            alert_msg = f"京东监控系统无法启动\n\n"
-            alert_msg += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            alert_msg += f"❌ 原因: 未找到有效的cookies配置\n"
-            
-            if self.cookies_source == "browser":
-                alert_msg += f"📁 浏览器目录: {self.user_data_dirs}\n"
-                alert_msg += f"💡 请确保已登录京东并保存登录状态"
-            else:
-                alert_msg += f"📁 cookies文件: {self.cookies_file}\n"
-                alert_msg += f"💡 请检查cookies文件是否存在且格式正确"
-            
-            # self.send_alert_notification(alert_msg)
-            return
         
         # 重置总结标记
         self.has_sent_summary = False
         
-        # 加载所有现有SKU
-        all_existing_skus = self.load_all_existing_skus()
+        # 优化：在此处加载全量 SKU 并存入内存缓存，本轮监控的所有线程共享此结果
+        print("📁 正在加载历史 SKU 记录...")
+        self.cached_historical_skus = self.load_all_existing_skus()
+        print(f"✅ 历史 SKU 加载完成，共 {len(self.cached_historical_skus)} 个")
         
         total_new_skus = set()
         total_new_products = []
@@ -1037,7 +925,7 @@ class JDSKUMonitor:
                 print("🛑 检测到关闭信号，停止分配新任务")
                 break
                 
-            browser_index = (i % len(self.cookies_dicts)) + 1
+            browser_index = i + 1
             task_args = (keyword_config, process_timestamp, browser_index)
             tasks.append(task_args)
             keyword_tasks.append((keyword_config, task_args))
@@ -1064,7 +952,7 @@ class JDSKUMonitor:
                 break
                 
             try:
-                result = future.result(timeout=20)  # 5分钟超时
+                result = future.result(timeout=120)  # 超时设置
                 
                 # 获取对应的关键词配置
                 keyword_config = future_to_keyword[future]
@@ -1079,7 +967,9 @@ class JDSKUMonitor:
                         'new_skus': list(new_skus_for_keyword),
                         'new_products': new_products_for_keyword,
                         'total_skus': len(all_skus),
-                        'historical_skus': len(self.get_keyword_historical_skus(keyword))
+                        'historical_skus': len(self.get_keyword_historical_skus(keyword)),
+                        'min_price': keyword_config['min_price'],
+                        'max_price': keyword_config['max_price'],
                     }
                     
                     # 更新总的新SKU
@@ -1096,7 +986,7 @@ class JDSKUMonitor:
         # 存储当前监控数据（用于退出时发送总结）
         self.current_monitor_data = {
             'total_new_skus': total_new_skus,
-            'all_existing_skus_count': len(all_existing_skus),
+            'all_existing_skus_count': len(self.cached_historical_skus),
             'keyword_new_skus_details': keyword_new_skus_details,
             'monitor_start_time': monitor_start_time,
             'process_timestamp': process_timestamp
@@ -1169,7 +1059,9 @@ class JDSKUMonitor:
     
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
         """记录详细监控结果到日志文件"""
-        log_file = f"monitor_logs/monitor_{datetime.now().strftime('%Y%m%d')}.log"
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
+        log_file = os.path.join(root_dir, "monitor_logs", f"monitor_{datetime.now().strftime('%Y%m%d')}.log")
         
         log_entry = f"\n{'='*80}\n"
         log_entry += f"监控执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -1199,38 +1091,9 @@ class JDSKUMonitor:
         
         print(f"⏰ 启动定时监控")
         print(f"📝 配置关键词文件: {self.keywords_config_file}")
-        # print(f"🔔 飞书机器人: {len(self.webhook_urls)} 个")
-        # print(f"🚨 警报机器人: {'已配置' if self.alert_webhook_url else '未配置'}")
-        # print(f"🍪 Cookies来源: {self.cookies_source}")
-        print(f"🔧 并发浏览器实例: {len(self.cookies_dicts)} 个")
-        
-        if self.cookies_source == "browser":
-            # print(f"📁 浏览器目录: {self.user_data_dirs}")
-            print(f"✅ 有效cookies: {sum(1 for cookies in self.cookies_dicts if cookies)}/{len(self.cookies_dicts)}")
-        else:
-            print(f"📁 Cookies文件: {self.cookies_file} ({'已加载cookies' if self.cookies_dicts and self.cookies_dicts[0] else '未加载cookies'})")
-        
         print(f"⏱️  当前时间段 ({current_hour}点): 执行间隔 {interval_minutes} 分钟")
         print(f"💾 按 Ctrl+C 可以安全退出程序")
         print(f"🛑 再次按 Ctrl+C 强制退出所有进程")
-        
-        # 检查cookies是否有效
-        valid_cookies_count = sum(1 for cookies in self.cookies_dicts if cookies)
-        if valid_cookies_count == 0:
-            print("\n❌ 未加载有效的cookies，无法启动监控")
-            alert_msg = f"京东监控系统启动失败\n\n"
-            alert_msg += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            alert_msg += f"❌ 原因: 未找到有效的cookies配置\n"
-            
-            if self.cookies_source == "browser":
-                alert_msg += f"📁 浏览器目录: {self.user_data_dirs}\n"
-                alert_msg += f"💡 请确保已登录京东并保存登录状态"
-            else:
-                alert_msg += f"📁 cookies文件: {self.cookies_file}\n"
-                alert_msg += f"💡 请检查cookies文件是否存在且格式正确"
-            
-            # self.send_alert_notification(alert_msg)
-            return
         
         # 立即执行一次监控
         print("\n🚀 开始第一次并发监控...")
@@ -1269,12 +1132,12 @@ class JDSKUMonitor:
 
 def main():
     # 关键词配置文件路径
-    keywords_config_file = "keywords_config_money.json"
+    keywords_config_file = os.path.join(user_dir, "keywords_config.json")
     
     # 检查关键词配置文件是否存在
     if not os.path.exists(keywords_config_file):
         print(f"❌ 关键词配置文件不存在: {keywords_config_file}")
-        print("💡 请创建 keywords_config_money.json 文件")
+        print("💡 请创建关键词文件")
         return
     
     # 配置飞书机器人
@@ -1289,48 +1152,18 @@ def main():
     # 配置专门的警报机器人
     alert_webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/c4c5c426-056c-4141-af3e-5e2d4b775fcd"
     
-    # 选择cookies获取方式
-    print("请选择cookies获取方式:")
-    print("1. 从浏览器用户数据目录获取 (推荐)")
-    print("2. 从cookies.txt文件获取")
-    
-    choice = input("请输入选择 (1 或 2): ").strip()
-    
-    if choice == "1":
-        # 使用浏览器方式 - 多个不同的用户数据目录
-        user_data_dirs = ["./chrome7", "./chrome8"]
-        monitor = JDSKUMonitor(
-            keywords_config_file, 
-            cookies_source="browser",
-            user_data_dirs=user_data_dirs,
-            webhook_urls=webhook_urls,
-            alert_webhook_url=alert_webhook_url
-        )
-    elif choice == "2":
-        # 使用文件方式
-        monitor = JDSKUMonitor(
-            keywords_config_file, 
-            cookies_source="file",
-            cookies_file="cookies.txt",
-            webhook_urls=webhook_urls,
-            alert_webhook_url=alert_webhook_url
-        )
-    else:
-        print("❌ 无效选择，使用默认的浏览器方式")
-        user_data_dirs = ["./chrome7", "./chrome8"]
-        monitor = JDSKUMonitor(
-            keywords_config_file, 
-            cookies_source="browser",
-            user_data_dirs=user_data_dirs,
-            webhook_urls=webhook_urls,
-            alert_webhook_url=alert_webhook_url
-        )
+    # 修改：直接初始化，不再提示选择获取方式
+    monitor = JDSKUMonitor(
+        keywords_config_file, 
+        webhook_urls=webhook_urls,
+        alert_webhook_url=alert_webhook_url
+    )
     
     # 启动定时监控
     monitor.start_scheduled_monitoring()
 
 if __name__ == "__main__":
-    print("京东SKU监控系统 - 即时通知版本")
+    print("京东SKU监控系统 - 即时通知版本 (云端优化版)")
     print("=" * 50)
     
     # 直接启动定时监控
