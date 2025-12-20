@@ -16,33 +16,22 @@ import signal
 import sys
 from urllib.parse import quote
 
-# 修改：将所有chrome目录放在C:\data下
-chrome_dirs = [
-    r"./chrome3", 
-    r"./chrome4", 
-    r"./chrome7", 
-    r"./chrome8", 
-    r"./chrome9"
-]
+# 修改：去掉了本地chrome目录列表，改为空配置
+chrome_dirs = []
 
 class JDSKUMonitor:
-    def __init__(self, keywords_config_file, cookies_source="browser", cookies_file="cookies.txt", 
-                 user_data_dirs=None, webhook_urls=None, alert_webhook_url=None):
+    def __init__(self, keywords_config_file, webhook_urls=None, alert_webhook_url=None):
         """
         初始化监控器
         
         Args:
             keywords_config_file: 关键词配置JSON文件路径
-            cookies_source: cookies来源，可选 "browser" 或 "file"
-            cookies_file: cookies文件路径（当cookies_source为"file"时使用）
-            user_data_dirs: 浏览器用户数据目录列表（当cookies_source为"browser"时使用）
             webhook_urls: 飞书机器人webhook URL列表
             alert_webhook_url: 警报机器人webhook URL
         """
         self.keywords_config_file = keywords_config_file
-        self.cookies_source = cookies_source
-        self.cookies_file = cookies_file        
-        self.user_data_dirs = user_data_dirs or chrome_dirs
+        # 固定使用内存浏览器模式，不再从本地读取cookies
+        self.cookies_source = "none"
         self.webhook_urls = webhook_urls or []
         self.alert_webhook_url = alert_webhook_url
         # 修改：将所有数据文件夹放在C:\data下
@@ -53,8 +42,8 @@ class JDSKUMonitor:
         # 先初始化监控结果，防止后续访问失败
         self.init_monitor_results()
         
-        # 根据配置获取cookies
-        self.cookies_dicts = self.load_cookies()
+        # 不再加载外部cookies
+        self.cookies_dicts = [{}]
         
         # 创建数据文件夹
         self.create_directories()
@@ -72,8 +61,8 @@ class JDSKUMonitor:
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         
-        # 创建线程池执行器
-        self.executor = ThreadPoolExecutor(max_workers=len(self.user_data_dirs))
+        # 创建线程池执行器 - 使用默认并发数
+        self.executor = ThreadPoolExecutor(max_workers=5)
     
     def load_keywords_config(self):
         """从JSON文件加载关键词配置"""
@@ -92,94 +81,15 @@ class JDSKUMonitor:
     
     def load_cookies(self):
         """根据配置加载cookies"""
-        if self.cookies_source == "browser":
-            return self.load_cookies_from_browsers(self.user_data_dirs)
-        elif self.cookies_source == "file":
-            return [self.load_cookies_from_file(self.cookies_file)]
-        else:
-            print(f"❌ 不支持的cookies来源: {self.cookies_source}")
-            return [{}]
+        return [{}]
     
     def load_cookies_from_browsers(self, user_data_dirs):
         """从多个浏览器用户数据目录获取cookies"""
-        cookies_dicts = []
-        
-        for i, user_data_dir in enumerate(user_data_dirs, 1):
-            if not os.path.exists(user_data_dir):
-                print(f"❌ 浏览器用户数据目录不存在: {user_data_dir}")
-                cookies_dicts.append({})
-                continue
-            
-            try:
-                with sync_playwright() as p:
-                    # 启动浏览器，使用用户数据目录
-                    browser = p.chromium.launch_persistent_context(
-                        user_data_dir=user_data_dir,
-                        headless=True,
-                        args=[
-                            '--disable-blink-features=AutomationControlled',
-                            '--disable-features=VizDisplayCompositor',
-                            '--disable-background-timer-throttling',
-                            '--disable-backgrounding-occluded-windows',
-                            '--disable-renderer-backgrounding'
-                        ]
-                    )
-                    
-                    # 创建一个新页面来获取cookies
-                    page = browser.new_page()
-                    
-                    # 访问京东商城页面来获取相关cookies
-                    page.goto("https://mall.jd.com", timeout=30000, wait_until='domcontentloaded')
-                    
-                    # 获取所有cookies
-                    all_cookies = browser.cookies()
-                    
-                    # 过滤出京东相关的cookies
-                    jd_cookies = {}
-                    for cookie in all_cookies:
-                        if 'jd.com' in cookie['domain'] or 'jd.com' in cookie.get('domain', ''):
-                            jd_cookies[cookie['name']] = cookie['value']
-                    print('all_cookies')
-                    print(all_cookies)
-                    print('\njd_cookies')
-                    print(jd_cookies)
-                    browser.close()
-                    
-                    print(f"✅ 从浏览器 {i} 加载 {len(jd_cookies)} 个京东相关cookies")
-                    
-                    # 打印关键cookies信息
-                    if 'pt_key' in jd_cookies:
-                        print(f"🔑 浏览器 {i} pt_key: {jd_cookies['pt_key'][:20]}...")
-                    if 'pt_pin' in jd_cookies:
-                        print(f"🔑 浏览器 {i} pt_pin: {jd_cookies['pt_pin']}")
-                    
-                    cookies_dicts.append(jd_cookies)
-                    
-            except Exception as e:
-                print(f"❌ 从浏览器 {i} 加载cookies时出错: {e}")
-                cookies_dicts.append({})
-        
-        return cookies_dicts
+        return [{}]
     
     def load_cookies_from_file(self, cookies_file):
         """从文件加载cookies字符串并解析为字典"""
-        if not os.path.exists(cookies_file):
-            print(f"❌ Cookies文件不存在: {cookies_file}")
-            return {}
-        
-        try:
-            with open(cookies_file, 'r', encoding='utf-8') as f:
-                cookies_string = f.read().strip()
-            
-            if not cookies_string:
-                print("❌ Cookies文件为空")
-                return {}
-            
-            return self.parse_cookies_string(cookies_string)
-            
-        except Exception as e:
-            print(f"❌ 读取cookies文件时出错: {e}")
-            return {}
+        return {}
     
     def parse_cookies_string(self, cookies_string):
         """解析cookies字符串为字典"""
@@ -247,13 +157,6 @@ class JDSKUMonitor:
             r"C:\data\new_skus_records",
             self.all_skus_dir,
         ]
-        
-        # 如果使用浏览器模式，确保chrome目录存在
-        if self.cookies_source == "browser":
-            for user_data_dir in self.user_data_dirs:
-                if not os.path.exists(user_data_dir):
-                    os.makedirs(user_data_dir)
-                    print(f"📁 创建文件夹: {user_data_dir}")
         
         for directory in directories:
             if not os.path.exists(directory):
@@ -592,109 +495,39 @@ class JDSKUMonitor:
     
     def check_cookies_validity(self, page, browser_index=1):
         """检查cookies是否过期"""
-        try:
-            # 获取页面内容
-            page_content = page.content()
-            
-            # 检查登录状态
-            is_logged_in = self.check_login_status(page_content)
-            
-            if not is_logged_in:
-                print(f"❌ 浏览器 {browser_index} Cookies已过期或无效，未检测到登录状态")
-                
-                # 发送警报通知
-                alert_msg = f"京东监控系统检测到浏览器 {browser_index} Cookies已过期或无效\n\n"
-                alert_msg += f"⏰ 检测时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                
-                if self.cookies_source == "browser":
-                    alert_msg += f"📝 请重新登录京东并确保浏览器保存登录状态\n"
-                    alert_msg += f"💡 建议手动访问 https://mall.jd.com 确认登录状态"
-                else:
-                    alert_msg += f"📝 请更新cookies文件: {self.cookies_file}\n"
-                    alert_msg += f"💡 建议重新登录京东获取最新cookies"
-                
-                # self.send_alert_notification(alert_msg)
-                return False
-            
-            return True
-                
-        except Exception as e:
-            print(f"❌ 检查浏览器 {browser_index} cookies时出错: {e}")
-            
-            # 发送异常警报
-            alert_msg = f"京东监控系统浏览器 {browser_index} Cookies检查异常\n\n"
-            alert_msg += f"⏰ 异常时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            alert_msg += f"❌ 错误信息: {str(e)}\n"
-            alert_msg += f"🔧 请检查网络连接和cookies配置"
-            
-            # self.send_alert_notification(alert_msg)
-            return False
+        return True
     
     def create_browser_context(self, playwright, browser_index=1):
         """创建浏览器上下文"""
-        if self.cookies_source == "browser":
-            # 使用持久化浏览器上下文
-            user_data_dir = self.user_data_dirs[browser_index - 1] if browser_index <= len(self.user_data_dirs) else self.user_data_dirs[0]
-            browser = playwright.chromium.launch_persistent_context(
-                user_data_dir=user_data_dir,
-                headless=True,
-                args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
-                ],
-                viewport={'width': 1920, 'height': 1080},
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-            )
-        else:
-            # 使用普通浏览器上下文，手动设置cookies
-            browser = playwright.chromium.launch(
-                headless=True,
-                args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
-                ]
-            )
-            
-            context = browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                viewport={'width': 1920, 'height': 1080},
-                extra_http_headers={
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                }
-            )
-            
-            # 设置cookies
-            cookies_dict = self.cookies_dicts[0] if self.cookies_dicts else {}
-            if cookies_dict:
-                cookies_to_set = []
-                for name, value in cookies_dict.items():
-                    cookies_to_set.append({
-                        'name': name,
-                        'value': value,
-                        'domain': '.jd.com',
-                        'path': '/'
-                    })
-                
-                context.add_cookies(cookies_to_set)
-                # print(f"🔐 已设置 {len(cookies_to_set)} 个cookies")
-            
-            browser = context
+        # 统一使用无状态浏览器模式
+        browser = playwright.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--disable-features=VizDisplayCompositor',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
+            ]
+        )
+        
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080},
+            extra_http_headers={
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            }
+        )
         
         # 隐藏自动化特征
-        browser.add_init_script("""
+        context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined,
             });
         """)
         
-        return browser
+        return context
     
     def remove_hot_sale_products(self, html_content):
         """从HTML中移除热销商品部分"""
@@ -805,8 +638,8 @@ class JDSKUMonitor:
         
         with sync_playwright() as p:
             # 使用浏览器上下文
-            browser = self.create_browser_context(p, browser_index)
-            page = browser.new_page()
+            context = self.create_browser_context(p, browser_index)
+            page = context.new_page()
             
             try:
                 # print(f"🔍 浏览器 {browser_index} 搜索关键词: {keyword} (价格: {min_price}-{max_price}元)\n")
@@ -816,11 +649,6 @@ class JDSKUMonitor:
                 #     print()
                     
                 page.goto(search_url, timeout=60000, wait_until='networkidle')
-                
-                # 检查cookies是否有效
-                if not self.check_cookies_validity(page, browser_index):
-                    print(f"❌ 浏览器 {browser_index} Cookies已过期，请更新cookies配置")
-                    return []
                 
                 # 等待商品列表加载
                 try:
@@ -864,7 +692,7 @@ class JDSKUMonitor:
                 print(f"❌ 浏览器 {browser_index} 搜索关键词 '{keyword}' 搜索URL: {search_url} 时出错: {e}")
                 return []
             finally:
-                browser.close()
+                context.close()
     
     def process_single_keyword(self, keyword_config, timestamp, browser_index=1):
         """处理单个关键词并立即发送通知"""
@@ -1021,29 +849,8 @@ class JDSKUMonitor:
         print("🕒 开始并发监控任务")
         print(f"⏰ 执行时间戳: {process_timestamp}")
         print(f"⏰ 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"🔧 使用 {len(self.cookies_dicts)} 个浏览器实例并发执行")
         print(f"📝 配置关键词: {len(self.keywords_config)} 个")
         print("="*60)
-        
-        # 检查cookies是否有效
-        valid_cookies_count = sum(1 for cookies in self.cookies_dicts if cookies)
-        if valid_cookies_count == 0:
-            print("❌ 未加载有效的cookies，无法进行监控")
-            
-            # 发送cookies缺失警报
-            alert_msg = f"京东监控系统无法启动\n\n"
-            alert_msg += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            alert_msg += f"❌ 原因: 未找到有效的cookies配置\n"
-            
-            if self.cookies_source == "browser":
-                alert_msg += f"📁 浏览器目录: {self.user_data_dirs}\n"
-                alert_msg += f"💡 请确保已登录京东并保存登录状态"
-            else:
-                alert_msg += f"📁 cookies文件: {self.cookies_file}\n"
-                alert_msg += f"💡 请检查cookies文件是否存在且格式正确"
-            
-            # self.send_alert_notification(alert_msg)
-            return
         
         # 重置总结标记
         self.has_sent_summary = False
@@ -1065,7 +872,7 @@ class JDSKUMonitor:
                 print("🛑 检测到关闭信号，停止分配新任务")
                 break
                 
-            browser_index = (i % len(self.cookies_dicts)) + 1
+            browser_index = i + 1
             task_args = (keyword_config, process_timestamp, browser_index)
             tasks.append(task_args)
             keyword_tasks.append((keyword_config, task_args))
@@ -1092,7 +899,7 @@ class JDSKUMonitor:
                 break
                 
             try:
-                result = future.result(timeout=20)  # 5分钟超时
+                result = future.result(timeout=120)  # 超时设置
                 
                 # 获取对应的关键词配置
                 keyword_config = future_to_keyword[future]
@@ -1230,38 +1037,9 @@ class JDSKUMonitor:
         
         print(f"⏰ 启动定时监控")
         print(f"📝 配置关键词文件: {self.keywords_config_file}")
-        # print(f"🔔 飞书机器人: {len(self.webhook_urls)} 个")
-        # print(f"🚨 警报机器人: {'已配置' if self.alert_webhook_url else '未配置'}")
-        # print(f"🍪 Cookies来源: {self.cookies_source}")
-        print(f"🔧 并发浏览器实例: {len(self.cookies_dicts)} 个")
-        
-        if self.cookies_source == "browser":
-            # print(f"📁 浏览器目录: {self.user_data_dirs}")
-            print(f"✅ 有效cookies: {sum(1 for cookies in self.cookies_dicts if cookies)}/{len(self.cookies_dicts)}")
-        else:
-            print(f"📁 Cookies文件: {self.cookies_file} ({'已加载cookies' if self.cookies_dicts and self.cookies_dicts[0] else '未加载cookies'})")
-        
         print(f"⏱️  当前时间段 ({current_hour}点): 执行间隔 {interval_minutes} 分钟")
         print(f"💾 按 Ctrl+C 可以安全退出程序")
         print(f"🛑 再次按 Ctrl+C 强制退出所有进程")
-        
-        # 检查cookies是否有效
-        valid_cookies_count = sum(1 for cookies in self.cookies_dicts if cookies)
-        if valid_cookies_count == 0:
-            print("\n❌ 未加载有效的cookies，无法启动监控")
-            alert_msg = f"京东监控系统启动失败\n\n"
-            alert_msg += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            alert_msg += f"❌ 原因: 未找到有效的cookies配置\n"
-            
-            if self.cookies_source == "browser":
-                alert_msg += f"📁 浏览器目录: {self.user_data_dirs}\n"
-                alert_msg += f"💡 请确保已登录京东并保存登录状态"
-            else:
-                alert_msg += f"📁 cookies文件: {self.cookies_file}\n"
-                alert_msg += f"💡 请检查cookies文件是否存在且格式正确"
-            
-            # self.send_alert_notification(alert_msg)
-            return
         
         # 立即执行一次监控
         print("\n🚀 开始第一次并发监控...")
@@ -1300,12 +1078,12 @@ class JDSKUMonitor:
 
 def main():
     # 关键词配置文件路径
-    keywords_config_file = "keywords_config_money.json"
+    keywords_config_file = "keywords_config_jie_mi.json"
     
     # 检查关键词配置文件是否存在
     if not os.path.exists(keywords_config_file):
         print(f"❌ 关键词配置文件不存在: {keywords_config_file}")
-        print("💡 请创建 keywords_config_money.json 文件")
+        print("💡 请创建关键词文件")
         return
     
     # 配置飞书机器人
@@ -1320,49 +1098,18 @@ def main():
     # 配置专门的警报机器人
     alert_webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/c4c5c426-056c-4141-af3e-5e2d4b775fcd"
     
-    # 选择cookies获取方式
-    print("请选择cookies获取方式:")
-    print("1. 从浏览器用户数据目录获取 (推荐)")
-    print("2. 从cookies.txt文件获取")
-    
-    choice = input("请输入选择 (1 或 2): ").strip()
-    
-    if choice == "1":
-        # 使用浏览器方式 - 多个不同的用户数据目录
-        user_data_dirs = chrome_dirs
-        monitor = JDSKUMonitor(
-            keywords_config_file, 
-            cookies_source="browser",
-            user_data_dirs=user_data_dirs,
-            webhook_urls=webhook_urls,
-            alert_webhook_url=alert_webhook_url
-        )
-    elif choice == "2":
-        # 使用文件方式 - 修改cookies文件路径到C:\data目录
-        cookies_file = r"C:\data\cookies.txt"
-        monitor = JDSKUMonitor(
-            keywords_config_file, 
-            cookies_source="file",
-            cookies_file=cookies_file,
-            webhook_urls=webhook_urls,
-            alert_webhook_url=alert_webhook_url
-        )
-    else:
-        print("❌ 无效选择，使用默认的浏览器方式")
-        user_data_dirs = chrome_dirs
-        monitor = JDSKUMonitor(
-            keywords_config_file, 
-            cookies_source="browser",
-            user_data_dirs=user_data_dirs,
-            webhook_urls=webhook_urls,
-            alert_webhook_url=alert_webhook_url
-        )
+    # 修改：直接初始化，不再提示选择获取方式
+    monitor = JDSKUMonitor(
+        keywords_config_file, 
+        webhook_urls=webhook_urls,
+        alert_webhook_url=alert_webhook_url
+    )
     
     # 启动定时监控
     monitor.start_scheduled_monitoring()
 
 if __name__ == "__main__":
-    print("京东SKU监控系统 - 即时通知版本")
+    print("京东SKU监控系统 - 即时通知版本 (云端优化版)")
     print("=" * 50)
     
     # 直接启动定时监控
