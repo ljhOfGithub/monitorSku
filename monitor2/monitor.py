@@ -155,7 +155,6 @@ class JDSKUMonitor:
     def create_directories(self):
         """创建所有必要的文件夹"""
         # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
         directories = [
             os.path.join(root_dir, "monitor_data"),
             os.path.join(root_dir, "monitor_logs"), 
@@ -174,68 +173,73 @@ class JDSKUMonitor:
         """加载所有已存在的SKU（从文件夹中扫描）"""
         all_skus = set()
         
-        for filename in os.listdir(self.all_skus_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(self.all_skus_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        skus = data.get('skus', [])
-                        all_skus.update(skus)
-                except Exception as e:
-                    print(f"❌ 加载SKU文件 {filename} 时出错: {e}")
+        if os.path.exists(self.all_skus_dir):
+            for filename in os.listdir(self.all_skus_dir):
+                if filename.endswith(".json"):
+                    filepath = os.path.join(self.all_skus_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            skus = data.get('skus', [])
+                            all_skus.update(skus)
+                    except Exception as e:
+                        print(f"❌ 加载SKU文件 {filename} 时出错: {e}")
 
-        for filename in os.listdir(self.new_skus_records_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(self.new_skus_records_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        skus = data.get('new_skus', [])
-                        all_skus.update(skus)
-                except Exception as e:
-                    print(f"❌ 加载SKU文件 {filename} 时出错: {e}")
+        if os.path.exists(self.new_skus_records_dir):
+            for filename in os.listdir(self.new_skus_records_dir):
+                if filename.endswith(".json"):
+                    filepath = os.path.join(self.new_skus_records_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            skus = data.get('new_skus', [])
+                            all_skus.update(skus)
+                    except Exception as e:
+                        print(f"❌ 加载SKU文件 {filename} 时出错: {e}")
         # print(f"📁 已加载 {len(all_skus)} 个现有SKU")
         return all_skus
     
     def save_keyword_skus(self, keyword, skus, timestamp):
-        """保存关键词的SKU到文件 - 优化版：按关键词合并，不带时间戳"""
+        """保存关键词的SKU到文件 - 优化：按关键词和价格范围合并，去时间戳"""
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
+        # 使用固定文件名实现合并逻辑
         filename = f"{safe_keyword}_all_history.json"
         filepath = os.path.join(self.all_skus_dir, filename)
         
         existing_skus = set()
+        # 如果文件已存在，先读取旧数据进行合并
         if os.path.exists(filepath):
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     old_data = json.load(f)
                     existing_skus = set(old_data.get('skus', []))
-            except:
+            except Exception:
                 pass
         
-        # 合并SKU
-        all_skus = existing_skus.union(set(skus))
+        # 合并旧SKU和当前抓取到的SKU
+        all_skus_merged = existing_skus.union(set(skus))
         
         data = {
             'keyword': keyword,
-            'skus': list(all_skus),
+            'skus': list(all_skus_merged),
             'last_update_time': datetime.now().isoformat(),
-            'total_skus': len(all_skus)
+            'total_skus': len(all_skus_merged)
         }
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        # print(f"💾 关键词 '{keyword}' 的SKU已更新合并: {filename}")
+        # print(f"💾 关键词 '{keyword}' 的SKU历史文件已更新合并")
     
     def save_new_skus_record(self, keyword_config, new_skus, timestamp):
-        """保存新发现的SKU记录 - 优化版：按配置合并，不带时间戳"""
+        """保存新发现的SKU记录 - 优化：按配置合并，去时间戳"""
         keyword = keyword_config['keyword']
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
         brand = keyword_config.get('brand', 'default')
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         
+        # 生成基于配置的固定文件名
         filename = f"new_skus_{safe_keyword}_{brand}_{min_price}_{max_price}.json"
         filepath = os.path.join(self.new_skus_records_dir, filename)
         
@@ -245,11 +249,11 @@ class JDSKUMonitor:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     old_data = json.load(f)
                     existing_new_skus = set(old_data.get('new_skus', []))
-            except:
+            except Exception:
                 pass
 
-        # 合并新发现的SKU
-        all_new_skus = existing_new_skus.union(set(new_skus))
+        # 合并历史发现的新SKU
+        all_new_skus_merged = existing_new_skus.union(set(new_skus))
         
         data = {
             'keyword': keyword,
@@ -257,15 +261,15 @@ class JDSKUMonitor:
             'min_price': min_price,
             'max_price': max_price,
             'last_found_time': datetime.now().isoformat(),
-            'new_skus_count': len(all_new_skus),
-            'new_skus': list(all_new_skus),
-            'has_new_skus': len(all_new_skus) > 0
+            'total_new_skus_count': len(all_new_skus_merged),
+            'new_skus': list(all_new_skus_merged),
+            'has_new_skus': len(all_new_skus_merged) > 0
         }
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        # print(f"💾 新SKU记录已更新合并: {filename}")
+        # print(f"💾 新SKU记录文件已更新合并: {filename}")
     
     def get_keyword_historical_skus(self, keyword):
         # """获取关键词的历史SKU（扫描所有相关文件）"""
@@ -299,7 +303,6 @@ class JDSKUMonitor:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
         # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
         search_pages_dir = os.path.join(root_dir, "search_pages")
         # if not os.path.exists(search_pages_dir):
         #     os.makedirs(search_pages_dir)
@@ -313,7 +316,7 @@ class JDSKUMonitor:
         return filepath
     
     def save_product_details(self, keyword_config, product_links, all_skus, new_skus, timestamp):
-        """保存商品详细信息 - 优化版：按配置合并，不带时间戳"""
+        """保存商品详细信息 - 优化：按配置合并，去时间戳"""
         keyword = keyword_config['keyword']
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
@@ -321,37 +324,35 @@ class JDSKUMonitor:
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         
         details_filename = f"products_{safe_keyword}_{brand}_{min_price}_{max_price}.json"
+        details_filepath = os.path.join(os.path.join(root_dir, "product_details"), details_filename)
         
-        # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
-        product_details_dir = os.path.join(root_dir, "product_details")
-        if not os.path.exists(product_details_dir):
-            os.makedirs(product_details_dir)
-        
-        details_filepath = os.path.join(product_details_dir, details_filename)
-        
-        existing_products = {}
+        existing_products_map = {}
         existing_all_skus = set()
-        existing_new_skus_list = set()
+        existing_new_skus_history = set()
         
+        # 尝试加载旧详情文件
         if os.path.exists(details_filepath):
             try:
                 with open(details_filepath, 'r', encoding='utf-8') as f:
                     old_data = json.load(f)
-                    # 将旧商品转为字典方便去重合并（按sku_id）
-                    for p in old_data.get('products', []):
-                        existing_products[p['sku_id']] = p
+                    # 将旧商品信息放入map以按sku_id去重
+                    for prod in old_data.get('products', []):
+                        sku_id = prod.get('sku_id')
+                        if sku_id:
+                            existing_products_map[sku_id] = prod
                     existing_all_skus = set(old_data.get('all_skus', []))
-                    existing_new_skus_list = set(old_data.get('new_skus_list', []))
-            except:
+                    existing_new_skus_history = set(old_data.get('new_skus_list', []))
+            except Exception:
                 pass
 
-        # 合并新抓取的数据
-        for p in product_links:
-            existing_products[p['sku_id']] = p
+        # 合并新抓取的商品信息
+        for prod in product_links:
+            sku_id = prod.get('sku_id')
+            if sku_id:
+                existing_products_map[sku_id] = prod
         
         merged_all_skus = existing_all_skus.union(set(all_skus))
-        merged_new_skus_list = existing_new_skus_list.union(set(new_skus))
+        merged_new_skus_history = existing_new_skus_history.union(set(new_skus))
         
         details_data = {
             'keyword': keyword,
@@ -359,18 +360,18 @@ class JDSKUMonitor:
             'min_price': min_price,
             'max_price': max_price,
             'last_update_time': datetime.now().isoformat(),
-            'total_products': len(existing_products),
+            'total_products': len(existing_products_map),
             'total_skus': len(merged_all_skus),
-            'new_skus_count': len(merged_new_skus_list),
-            'products': list(existing_products.values()),
+            'total_new_skus_count': len(merged_new_skus_history),
+            'products': list(existing_products_map.values()),
             'all_skus': list(merged_all_skus),
-            'new_skus_list': list(merged_new_skus_list)
+            'new_skus_list': list(merged_new_skus_history)
         }
         
         with open(details_filepath, 'w', encoding='utf-8') as f:
             json.dump(details_data, f, ensure_ascii=False, indent=2)
         
-        # print(f"💾 商品详情已更新合并: {details_filename}")
+        # print(f"💾 商品详情文件已更新合并: {details_filename}")
         return product_links
     
     def load_monitor_results(self):
@@ -1060,7 +1061,6 @@ class JDSKUMonitor:
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
         """记录详细监控结果到日志文件"""
         # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
         log_file = os.path.join(root_dir, "monitor_logs", f"monitor_{datetime.now().strftime('%Y%m%d')}.log")
         
         log_entry = f"\n{'='*80}\n"
