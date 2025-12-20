@@ -18,7 +18,8 @@ from urllib.parse import quote
 
 # 修改：去掉了本地chrome目录列表，改为空配置
 chrome_dirs = []
-
+root_dir = "/Volumes/data"
+user_dir = "/Volumes/Users/yuhua/Desktop/rpa/feishu/monitor2"
 class JDSKUMonitor:
     def __init__(self, keywords_config_file, webhook_urls=None, alert_webhook_url=None):
         """
@@ -36,7 +37,6 @@ class JDSKUMonitor:
         self.alert_webhook_url = alert_webhook_url
         
         # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
         self.all_skus_dir = os.path.join(root_dir, "all_skus")
         self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
@@ -1085,7 +1085,7 @@ class JDSKUMonitor:
 
 def main():
     # 关键词配置文件路径
-    keywords_config_file = "keywords_config_jie_mi.json"
+    keywords_config_file = os.path.join(user_dir, "keywords_config_jie_mi.json")
     
     # 检查关键词配置文件是否存在
     if not os.path.exists(keywords_config_file):
