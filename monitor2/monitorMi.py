@@ -59,6 +59,9 @@ class JDSKUMonitor:
         self.is_shutting_down = False  # 标记是否正在关闭
         self.current_monitor_data = {}  # 存储当前监控周期的数据
         self.has_sent_summary = False  # 标记是否已发送总结报告
+
+        # 优化：增加内存缓存，避免频繁扫描磁盘
+        self.cached_historical_skus = set()
         
         # 设置信号处理
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -262,7 +265,9 @@ class JDSKUMonitor:
         #             print(f"❌ 加载历史SKU文件 {filename} 时出错: {e}")
         
         # return historical_skus
-        return self.load_all_existing_skus()
+        
+        # 优化：不再每次调用都全盘扫描，直接从内存缓存获取
+        return self.cached_historical_skus
     
     def save_search_page(self, keyword, min_price, max_price, html_content, timestamp):
         """保存搜索页面HTML"""
@@ -861,8 +866,10 @@ class JDSKUMonitor:
         # 重置总结标记
         self.has_sent_summary = False
         
-        # 加载所有现有SKU
-        all_existing_skus = self.load_all_existing_skus()
+        # 优化：在此处加载全量 SKU 并存入内存缓存，本轮监控的所有线程共享此结果
+        print("📁 正在加载历史 SKU 记录...")
+        self.cached_historical_skus = self.load_all_existing_skus()
+        print(f"✅ 历史 SKU 加载完成，共 {len(self.cached_historical_skus)} 个")
         
         total_new_skus = set()
         total_new_products = []
@@ -939,7 +946,7 @@ class JDSKUMonitor:
         # 存储当前监控数据（用于退出时发送总结）
         self.current_monitor_data = {
             'total_new_skus': total_new_skus,
-            'all_existing_skus_count': len(all_existing_skus),
+            'all_existing_skus_count': len(self.cached_historical_skus),
             'keyword_new_skus_details': keyword_new_skus_details,
             'monitor_start_time': monitor_start_time,
             'process_timestamp': process_timestamp
