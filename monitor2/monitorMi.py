@@ -34,10 +34,13 @@ class JDSKUMonitor:
         self.cookies_source = "none"
         self.webhook_urls = webhook_urls or []
         self.alert_webhook_url = alert_webhook_url
-        # 修改：将所有数据文件夹放在C:\data下
-        self.all_skus_dir = r"C:\data\all_skus"
-        self.new_skus_records_dir = r"C:\data\new_skus_records"
-        self.monitor_results_file = r"C:\data\monitor_results.json"
+        
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
+        self.all_skus_dir = os.path.join(root_dir, "all_skus")
+        self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
+        self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
+        
         self.monitor_type = "已赚钱类"
         # 先初始化监控结果，防止后续访问失败
         self.init_monitor_results()
@@ -148,13 +151,14 @@ class JDSKUMonitor:
     
     def create_directories(self):
         """创建所有必要的文件夹"""
-        # 修改：将所有文件夹放在C:\data下
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
         directories = [
-            r"C:\data\monitor_data",
-            r"C:\data\monitor_logs", 
-            # r"C:\data\search_pages",
-            r"C:\data\product_details",
-            r"C:\data\new_skus_records",
+            os.path.join(root_dir, "monitor_data"),
+            os.path.join(root_dir, "monitor_logs"), 
+            # os.path.join(root_dir, "search_pages"),
+            os.path.join(root_dir, "product_details"),
+            os.path.join(root_dir, "new_skus_records"),
             self.all_skus_dir,
         ]
         
@@ -269,8 +273,9 @@ class JDSKUMonitor:
         else:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
-        # 修改：保存到C:\data\search_pages
-        search_pages_dir = r"C:\data\search_pages"
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
+        search_pages_dir = os.path.join(root_dir, "search_pages")
         # if not os.path.exists(search_pages_dir):
         #     os.makedirs(search_pages_dir)
         
@@ -295,8 +300,9 @@ class JDSKUMonitor:
         else:
             details_filename = f"products_{safe_keyword}_{timestamp}.json"
         
-        # 修改：保存到C:\data\product_details
-        product_details_dir = r"C:\data\product_details"
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
+        product_details_dir = os.path.join(root_dir, "product_details")
         if not os.path.exists(product_details_dir):
             os.makedirs(product_details_dir)
         
@@ -1006,8 +1012,9 @@ class JDSKUMonitor:
     
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
         """记录详细监控结果到日志文件"""
-        # 修改：日志保存到C:\data\monitor_logs
-        log_file = f"C:\\data\\monitor_logs\\monitor_{datetime.now().strftime('%Y%m%d')}.log"
+        # 使用 root_dir 格式配置路径
+        root_dir = "/Volumes/data"
+        log_file = os.path.join(root_dir, "monitor_logs", f"monitor_{datetime.now().strftime('%Y%m%d')}.log")
         
         log_entry = f"\n{'='*80}\n"
         log_entry += f"监控执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
