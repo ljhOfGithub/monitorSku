@@ -18,8 +18,8 @@ from urllib.parse import quote
 
 # 修改：去掉了本地chrome目录列表，改为空配置
 chrome_dirs = []
-root_dir = "/Volumes/data"
-user_dir = "/Volumes/Users/yuhua/Desktop/rpa/feishu/monitor2"
+root_dir = "C:\\data"
+user_dir = "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2"
 class JDSKUMonitor:
     def __init__(self, keywords_config_file, webhook_urls=None, alert_webhook_url=None):
         """
@@ -38,6 +38,8 @@ class JDSKUMonitor:
         
         # 使用 root_dir 格式配置路径
         self.all_skus_dir = os.path.join(root_dir, "all_skus")
+        # 专门用于存储合并历史的目录
+        self.all_history_dir = os.path.join(root_dir, "all_history")
         self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
         
@@ -62,6 +64,8 @@ class JDSKUMonitor:
 
         # 优化：增加内存缓存，避免频繁扫描磁盘
         self.cached_historical_skus = set()
+        # 增加锁，确保多线程更新缓存和文件时安全
+        self.sku_lock = threading.Lock()
         
         # 设置信号处理
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -155,7 +159,6 @@ class JDSKUMonitor:
     def create_directories(self):
         """创建所有必要的文件夹"""
         # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
         directories = [
             os.path.join(root_dir, "monitor_data"),
             os.path.join(root_dir, "monitor_logs"), 
@@ -163,6 +166,7 @@ class JDSKUMonitor:
             os.path.join(root_dir, "product_details"),
             os.path.join(root_dir, "new_skus_records"),
             self.all_skus_dir,
+            self.all_history_dir,
         ]
         
         for directory in directories:
@@ -174,68 +178,85 @@ class JDSKUMonitor:
         """加载所有已存在的SKU（从文件夹中扫描）"""
         all_skus = set()
         
-        for filename in os.listdir(self.all_skus_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(self.all_skus_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        skus = data.get('skus', [])
-                        all_skus.update(skus)
-                except Exception as e:
-                    print(f"❌ 加载SKU文件 {filename} 时出错: {e}")
+        # 1. 扫描 C:\data\all_history 中的所有 json 文件
+        history_main_dir = os.path.join(root_dir, "all_history")
+        if os.path.exists(history_main_dir):
+            for filename in os.listdir(history_main_dir):
+                if filename.endswith(".json"):
+                    filepath = os.path.join(history_main_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            # 格式是 {"skus_detail": [{"sku_id": "..."}]}
+                            details = data.get('skus_detail', [])
+                            for item in details:
+                                if 'sku_id' in item:
+                                    all_skus.add(str(item['sku_id']))
+                    except Exception as e:
+                        print(f"❌ 加载 history 详情文件 {filename} 时出错: {e}")
 
-        for filename in os.listdir(self.new_skus_records_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(self.new_skus_records_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        skus = data.get('new_skus', [])
-                        all_skus.update(skus)
-                except Exception as e:
-                    print(f"❌ 加载SKU文件 {filename} 时出错: {e}")
-        # print(f"📁 已加载 {len(all_skus)} 个现有SKU")
+        # 2. 扫描 C:\data\all_skus 中以 all_history.json 结尾的所有文件
+        if os.path.exists(self.all_skus_dir):
+            for filename in os.listdir(self.all_skus_dir):
+                if filename.endswith("all_history.json"):
+                    filepath = os.path.join(self.all_skus_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            # 格式是 {"skus": ["..."]}
+                            skus = data.get('skus', [])
+                            for s in skus:
+                                all_skus.add(str(s))
+                    except Exception as e:
+                        print(f"❌ 加载 SKU 历史文件 {filename} 时出错: {e}")
+
         return all_skus
-    
     def save_keyword_skus(self, keyword, skus, timestamp):
-        """保存关键词的SKU到文件 - 优化版：按关键词合并，不带时间戳"""
+        """保存关键词的SKU到文件 - 优化：按关键词和价格范围合并，并实时更新内存缓存（加锁）"""
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
+        # 使用固定文件名实现合并逻辑
         filename = f"{safe_keyword}_all_history.json"
         filepath = os.path.join(self.all_skus_dir, filename)
         
-        existing_skus = set()
-        if os.path.exists(filepath):
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    old_data = json.load(f)
-                    existing_skus = set(old_data.get('skus', []))
-            except:
-                pass
+        with self.sku_lock:
+            existing_skus = set()
+            # 如果文件已存在，先读取旧数据进行合并
+            if os.path.exists(filepath):
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        old_data = json.load(f)
+                        existing_skus = set(old_data.get('skus', []))
+                except Exception:
+                    pass
+            
+            # 合并旧SKU和当前抓取到的SKU
+            new_set = set(skus)
+            all_skus_merged = existing_skus.union(new_set)
+            
+            # 实时更新内存中的全局缓存
+            self.cached_historical_skus.update(new_set)
+            
+            data = {
+                'keyword': keyword,
+                'skus': list(all_skus_merged),
+                'last_update_time': datetime.now().isoformat(),
+                'total_skus': len(all_skus_merged)
+            }
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
         
-        # 合并SKU
-        all_skus = existing_skus.union(set(skus))
-        
-        data = {
-            'keyword': keyword,
-            'skus': list(all_skus),
-            'last_update_time': datetime.now().isoformat(),
-            'total_skus': len(all_skus)
-        }
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        # print(f"💾 关键词 '{keyword}' 的SKU已更新合并: {filename}")
+        # print(f"💾 关键词 '{keyword}' 的SKU历史文件已更新合并")
     
     def save_new_skus_record(self, keyword_config, new_skus, timestamp):
-        """保存新发现的SKU记录 - 优化版：按配置合并，不带时间戳"""
+        """保存新发现的SKU记录 - 优化：按配置合并，去时间戳"""
         keyword = keyword_config['keyword']
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
         brand = keyword_config.get('brand', 'default')
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         
+        # 生成基于配置的固定文件名
         filename = f"new_skus_{safe_keyword}_{brand}_{min_price}_{max_price}.json"
         filepath = os.path.join(self.new_skus_records_dir, filename)
         
@@ -245,11 +266,11 @@ class JDSKUMonitor:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     old_data = json.load(f)
                     existing_new_skus = set(old_data.get('new_skus', []))
-            except:
+            except Exception:
                 pass
 
-        # 合并新发现的SKU
-        all_new_skus = existing_new_skus.union(set(new_skus))
+        # 合并历史发现的新SKU
+        all_new_skus_merged = existing_new_skus.union(set(new_skus))
         
         data = {
             'keyword': keyword,
@@ -257,9 +278,9 @@ class JDSKUMonitor:
             'min_price': min_price,
             'max_price': max_price,
             'last_found_time': datetime.now().isoformat(),
-            'new_skus_count': len(all_new_skus),
-            'new_skus': list(all_new_skus),
-            'has_new_skus': len(all_new_skus) > 0
+            'total_new_skus_count': len(all_new_skus_merged),
+            'new_skus': list(all_new_skus_merged),
+            'has_new_skus': len(all_new_skus_merged) > 0
         }
         
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -299,7 +320,6 @@ class JDSKUMonitor:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
         # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
         search_pages_dir = os.path.join(root_dir, "search_pages")
         # if not os.path.exists(search_pages_dir):
         #     os.makedirs(search_pages_dir)
@@ -313,7 +333,7 @@ class JDSKUMonitor:
         return filepath
     
     def save_product_details(self, keyword_config, product_links, all_skus, new_skus, timestamp):
-        """保存商品详细信息 - 优化版：按配置合并，不带时间戳"""
+        """保存商品详细信息 - 优化：按配置合并，去时间戳"""
         keyword = keyword_config['keyword']
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
@@ -321,37 +341,35 @@ class JDSKUMonitor:
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         
         details_filename = f"products_{safe_keyword}_{brand}_{min_price}_{max_price}.json"
+        details_filepath = os.path.join(os.path.join(root_dir, "product_details"), details_filename)
         
-        # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
-        product_details_dir = os.path.join(root_dir, "product_details")
-        if not os.path.exists(product_details_dir):
-            os.makedirs(product_details_dir)
-        
-        details_filepath = os.path.join(product_details_dir, details_filename)
-        
-        existing_products = {}
+        existing_products_map = {}
         existing_all_skus = set()
-        existing_new_skus_list = set()
+        existing_new_skus_history = set()
         
+        # 尝试加载旧详情文件
         if os.path.exists(details_filepath):
             try:
                 with open(details_filepath, 'r', encoding='utf-8') as f:
                     old_data = json.load(f)
-                    # 将旧商品转为字典方便去重合并（按sku_id）
-                    for p in old_data.get('products', []):
-                        existing_products[p['sku_id']] = p
+                    # 将旧商品信息放入map以按sku_id去重
+                    for prod in old_data.get('products', []):
+                        sku_id = prod.get('sku_id')
+                        if sku_id:
+                            existing_products_map[sku_id] = prod
                     existing_all_skus = set(old_data.get('all_skus', []))
-                    existing_new_skus_list = set(old_data.get('new_skus_list', []))
-            except:
+                    existing_new_skus_history = set(old_data.get('new_skus_list', []))
+            except Exception:
                 pass
 
-        # 合并新抓取的数据
-        for p in product_links:
-            existing_products[p['sku_id']] = p
+        # 合并新抓取的商品信息
+        for prod in product_links:
+            sku_id = prod.get('sku_id')
+            if sku_id:
+                existing_products_map[sku_id] = prod
         
         merged_all_skus = existing_all_skus.union(set(all_skus))
-        merged_new_skus_list = existing_new_skus_list.union(set(new_skus))
+        merged_new_skus_history = existing_new_skus_history.union(set(new_skus))
         
         details_data = {
             'keyword': keyword,
@@ -359,12 +377,12 @@ class JDSKUMonitor:
             'min_price': min_price,
             'max_price': max_price,
             'last_update_time': datetime.now().isoformat(),
-            'total_products': len(existing_products),
+            'total_products': len(existing_products_map),
             'total_skus': len(merged_all_skus),
-            'new_skus_count': len(merged_new_skus_list),
-            'products': list(existing_products.values()),
+            'total_new_skus_count': len(merged_new_skus_history),
+            'products': list(existing_products_map.values()),
             'all_skus': list(merged_all_skus),
-            'new_skus_list': list(merged_new_skus_list)
+            'new_skus_list': list(merged_new_skus_history)
         }
         
         with open(details_filepath, 'w', encoding='utf-8') as f:
@@ -740,8 +758,8 @@ class JDSKUMonitor:
                 return product_links, search_url, original_url
                 
             except Exception as e:
-                print(f"❌ 浏览器 {browser_index} 搜索关键词 '{keyword}' 搜索URL: {search_url} 时出错: {e}")
-                return []
+                # 抛出异常以便上层重试机制捕获
+                raise Exception(f"搜索执行异常: {e}")
             finally:
                 context.close()
     
@@ -749,7 +767,7 @@ class JDSKUMonitor:
         """处理单个关键词并立即发送通知"""
         # 检查是否正在关闭
         if not self.is_running:
-            return set(), []
+            return set(), [], set(), []
             
         keyword = keyword_config['keyword']
         min_price = keyword_config['min_price']
@@ -764,7 +782,8 @@ class JDSKUMonitor:
         # 搜索商品
         search_result = self.search_jd_products(keyword_config, timestamp, browser_index)
         if not search_result:
-            return set(), [], set(), []
+            # 如果返回空（通常是被拦截或超时且未捕获），视为失败抛出异常
+            raise Exception("未获取到有效的搜索结果")
         
         product_links, search_url, original_url = search_result
         
@@ -776,21 +795,20 @@ class JDSKUMonitor:
         all_skus = set(product['sku_id'] for product in product_links)
         # print(f"📦 浏览器 {browser_index} 搜索关键词: '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 搜索URL: {search_url}")
         
-        # 获取该关键词的历史SKU
+        # 获取该关键词的历史SKU (从加锁的缓存中获取)
         historical_skus = self.get_keyword_historical_skus(keyword)
-        # print(f"📊 关键词 '{keyword}' 历史SKU数量: {len(historical_skus)}")
         
         # 计算新SKU（相对于该关键词的历史数据）
         new_skus_for_keyword = all_skus - historical_skus
         new_products_for_keyword = [p for p in product_links if p['sku_id'] in new_skus_for_keyword]
         
-        # 保存当前搜索的SKU (优化后的合并保存)
+        # 保存当前搜索的SKU (此方法内部会更新加锁的内存缓存并写文件)
         self.save_keyword_skus(keyword, all_skus, timestamp)
         
-        # 保存新SKU记录（即使没有找到）(优化后的合并保存)
+        # 保存新SKU记录
         self.save_new_skus_record(keyword_config, new_skus_for_keyword, timestamp)
         
-        # 保存商品详细信息 (优化后的合并保存)
+        # 保存商品详细信息
         self.save_product_details(keyword_config, product_links, all_skus, new_skus_for_keyword, timestamp)
         
         # 使用关键词级别的新SKU进行通知（立即发送）
@@ -884,16 +902,13 @@ class JDSKUMonitor:
         return 1
     
     def monitor_keywords_concurrent(self):
-        """并发监控所有关键词"""
-        # 每次执行重新读取关键词配置文件
+        """并发监控所有关键词 - 包含关键词池失败重试机制"""
         keywords_config = self.load_keywords_config()
         if not keywords_config:
             print("❌ 没有加载到关键词配置，跳过本次监控")
             return
         
-        self.keywords_config = keywords_config  # 更新当前的关键词配置
-        
-        # 每次执行使用新的时间戳
+        self.keywords_config = keywords_config
         process_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         print("\n" + "="*60)
@@ -903,87 +918,68 @@ class JDSKUMonitor:
         print(f"📝 配置关键词: {len(self.keywords_config)} 个")
         print("="*60)
         
-        # 重置总结标记
-        self.has_sent_summary = False
-        
-        # 优化：在此处加载全量 SKU 并存入内存缓存，本轮监控的所有线程共享此结果
-        print("📁 正在加载历史 SKU 记录...")
-        self.cached_historical_skus = self.load_all_existing_skus()
-        print(f"✅ 历史 SKU 加载完成，共 {len(self.cached_historical_skus)} 个")
+        # 刷新初始全局缓存
+        with self.sku_lock:
+            print("📁 正在加载历史 SKU 记录...")
+            self.cached_historical_skus = self.load_all_existing_skus()
+            print(f"✅ 历史 SKU 加载完成，共 {len(self.cached_historical_skus)} 个")
         
         total_new_skus = set()
         total_new_products = []
-        keyword_new_skus_details = {}  # 记录每个关键词的新SKU详情
+        keyword_new_skus_details = {}
         monitor_start_time = datetime.now()
         
-        # 准备任务参数，同时记录关键词配置
-        tasks = []
-        keyword_tasks = []  # 记录每个任务对应的关键词配置
-        for i, keyword_config in enumerate(self.keywords_config):
-            # 检查是否正在关闭
-            if not self.is_running:
-                print("🛑 检测到关闭信号，停止分配新任务")
-                break
-                
-            browser_index = i + 1
-            task_args = (keyword_config, process_timestamp, browser_index)
-            tasks.append(task_args)
-            keyword_tasks.append((keyword_config, task_args))
+        # 初始化关键词池（待处理任务列表）
+        pending_tasks = []
+        for i, config in enumerate(self.keywords_config):
+            pending_tasks.append((config, i + 1))
+            
+        # 只要池子里还有任务，就持续循环重试
+        while pending_tasks and self.is_running:
+            print(f"🔄 当前池子剩余任务数: {len(pending_tasks)}")
+            current_futures = {}
+            
+            # 提交当前池子里的所有任务
+            for config, browser_idx in pending_tasks:
+                task_args = (config, process_timestamp, browser_idx)
+                future = self.executor.submit(self.process_keyword_with_browser, task_args)
+                current_futures[future] = (config, browser_idx)
+            
+            # 本轮提交完毕，清空池子，等待失败者重新加入
+            pending_tasks = []
+            
+            # 收集并检查结果
+            for future in concurrent.futures.as_completed(current_futures):
+                config_info, idx = current_futures[future]
+                keyword = config_info['keyword']
+                try:
+                    result = future.result(timeout=180)
+                    if result and len(result) == 4:
+                        all_skus, product_links, new_skus_for_keyword, new_products_for_keyword = result
+                        
+                        # 结果记录
+                        keyword_new_skus_details[keyword] = {
+                            'new_skus': list(new_skus_for_keyword),
+                            'new_products': new_products_for_keyword,
+                            'total_skus': len(all_skus),
+                            'min_price': config_info['min_price'],
+                            'max_price': config_info['max_price'],
+                        }
+                        total_new_skus.update(new_skus_for_keyword)
+                        total_new_products.extend(new_products_for_keyword)
+                    else:
+                        # 虽然没报错但没拿到结果，加入池子重试
+                        print(f"⚠️ 关键词 '{keyword}' 返回空结果，重新放入池子")
+                        pending_tasks.append((config_info, idx))
+                except Exception as e:
+                    # 抓取失败（超时、网络、拦截等），将该关键词重新放回池子
+                    print(f"❌ 关键词 '{keyword}' 处理异常: {e}。即将重新尝试...")
+                    pending_tasks.append((config_info, idx))
+            
+            if pending_tasks:
+                time.sleep(5) # 失败重试前稍微喘息一下
         
-        # 并发执行任务
-        print(f"🚀 开始并发执行 {len(tasks)} 个任务...")
-        
-        # 创建未来任务和结果的映射
-        future_to_keyword = {}
-        for keyword_config, task_args in keyword_tasks:
-            # 检查是否正在关闭
-            if not self.is_running:
-                print("🛑 检测到关闭信号，停止提交新任务")
-                break
-                
-            future = self.executor.submit(self.process_keyword_with_browser, task_args)
-            future_to_keyword[future] = keyword_config
-        
-        # 收集结果并立即处理每个关键词
-        for future in concurrent.futures.as_completed(future_to_keyword):
-            # 检查是否正在关闭
-            if not self.is_running:
-                print("🛑 检测到关闭信号，停止等待任务完成")
-                break
-                
-            try:
-                result = future.result(timeout=120)  # 超时设置
-                
-                # 获取对应的关键词配置
-                keyword_config = future_to_keyword[future]
-                keyword = keyword_config['keyword']
-                
-                # 处理结果
-                if len(result) == 4:  # 确保有完整的结果
-                    all_skus, product_links, new_skus_for_keyword, new_products_for_keyword = result
-                    
-                    # 记录关键词的新SKU详情
-                    keyword_new_skus_details[keyword] = {
-                        'new_skus': list(new_skus_for_keyword),
-                        'new_products': new_products_for_keyword,
-                        'total_skus': len(all_skus),
-                        'historical_skus': len(self.get_keyword_historical_skus(keyword)),
-                        'min_price': keyword_config['min_price'],
-                        'max_price': keyword_config['max_price'],
-                    }
-                    
-                    # 更新总的新SKU
-                    total_new_skus.update(new_skus_for_keyword)
-                    total_new_products.extend(new_products_for_keyword)
-                    
-            except Exception as e:
-                print(f"❌ 任务执行失败: {e}")
-                # 可以记录是哪个关键词失败了
-                if future in future_to_keyword:
-                    keyword_config = future_to_keyword[future]
-                    print(f"❌ 关键词 '{keyword_config['keyword']}' 处理失败: {e}")
-        
-        # 存储当前监控数据（用于退出时发送总结）
+        # 整理本轮监控数据
         self.current_monitor_data = {
             'total_new_skus': total_new_skus,
             'all_existing_skus_count': len(self.cached_historical_skus),
@@ -992,21 +988,11 @@ class JDSKUMonitor:
             'process_timestamp': process_timestamp
         }
         
-        # # 更新监控结果
-        # self.update_monitor_results(total_new_skus, monitor_start_time, process_timestamp, keyword_new_skus_details)
-        
-        # 发送总结通知（只有在正常完成时才发送）
         if self.is_running:
-            print("📤 发送监控总结通知...")
             self.send_monitor_summary_notification(self.current_monitor_data)
         
-        print(f"\n✅ 并发监控任务完成，发现 {len(total_new_skus)} 个新SKU")
-        
-        # 记录详细日志
+        print(f"\n✅ 本轮并发监控任务全部完成，共发现 {len(total_new_skus)} 个新SKU")
         self.log_detailed_monitoring_result(total_new_skus, process_timestamp, keyword_new_skus_details)
-        
-        # # 保存监控结果
-        # self.save_monitor_results()
     
     def update_keyword_stats(self, keyword_config, new_skus_count):
         """更新关键词统计"""
@@ -1060,7 +1046,6 @@ class JDSKUMonitor:
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
         """记录详细监控结果到日志文件"""
         # 使用 root_dir 格式配置路径
-        root_dir = "/Volumes/data"
         log_file = os.path.join(root_dir, "monitor_logs", f"monitor_{datetime.now().strftime('%Y%m%d')}.log")
         
         log_entry = f"\n{'='*80}\n"
@@ -1132,7 +1117,7 @@ class JDSKUMonitor:
 
 def main():
     # 关键词配置文件路径
-    keywords_config_file = os.path.join(user_dir, "keywords_config_jie_mi.json")
+    keywords_config_file = os.path.join(user_dir, "keywords_config.json")
     
     # 检查关键词配置文件是否存在
     if not os.path.exists(keywords_config_file):
@@ -1163,7 +1148,7 @@ def main():
     monitor.start_scheduled_monitoring()
 
 if __name__ == "__main__":
-    print("京东SKU监控系统 - 即时通知版本 (云端优化版)")
+    print("京东SKU监控系统 - 即时通知及重试优化版")
     print("=" * 50)
     
     # 直接启动定时监控
