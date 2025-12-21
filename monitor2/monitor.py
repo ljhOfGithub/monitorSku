@@ -519,7 +519,7 @@ class JDSKUMonitor:
                 message += f"💰 价格范围: {min_price}-{max_price}元\n"
             message += f"🆕 新SKU: {sku}\n"
             message += f"📦 标题: {title}\n"
-            message += f"💰 支付链接: https://trade.m.jd.com/checkout?commlist={sku},,1#/index\n"
+            # message += f"💰 支付链接: https://trade.m.jd.com/checkout?commlist={sku},,1#/index\n"
             message += f"🔗 详情链接: https://item.m.jd.com/product/{sku}.html\n"
             message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             
@@ -1132,7 +1132,7 @@ class JDSKUMonitor:
 
 def main():
     # 关键词配置文件路径
-    keywords_config_file = os.path.join(user_dir, "keywords_config.json")
+    keywords_config_file = os.path.join(user_dir, "keywords_config_1219_all.json")
     
     # 检查关键词配置文件是否存在
     if not os.path.exists(keywords_config_file):
@@ -1146,7 +1146,13 @@ def main():
         "https://open.feishu.cn/open-apis/bot/v2/hook/ce4e3ffa-a142-43d3-89b0-9c0871c8255b",
         "https://open.feishu.cn/open-apis/bot/v2/hook/41d87188-11b6-4268-ae4e-578dc614df4f",
         "https://open.feishu.cn/open-apis/bot/v2/hook/2fec3d16-d00b-4674-b2b4-62e8774d7228",
-        "https://open.feishu.cn/open-apis/bot/v2/hook/8d287153-d77e-4333-9e90-7a0a245abf1a"
+        "https://open.feishu.cn/open-apis/bot/v2/hook/8d287153-d77e-4333-9e90-7a0a245abf1a",
+        "https://open.feishu.cn/open-apis/bot/v2/hook/3716951c-784d-4066-af7e-d5c96be16db3",
+        "https://open.feishu.cn/open-apis/bot/v2/hook/41d87188-11b6-4268-ae4e-578dc614df4f",
+        "https://open.feishu.cn/open-apis/bot/v2/hook/e2a55623-6e69-4bcf-9dd8-de1909dca6ea",
+        "https://open.feishu.cn/open-apis/bot/v2/hook/52c5b16a-bad7-4782-83ae-af75384dbae0",
+        "https://open.feishu.cn/open-apis/bot/v2/hook/7e64d840-24d3-4e86-aa90-17dfb308214f",
+        "https://open.feishu.cn/open-apis/bot/v2/hook/7ab110f9-ffa4-42ef-80a4-5a53784063a5"
     ]
     
     # 配置专门的警报机器人
