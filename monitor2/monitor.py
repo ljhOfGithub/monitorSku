@@ -141,14 +141,29 @@ class JDSKUMonitor:
         print("🛑 停止所有任务...")
         self.executor.shutdown(wait=False)
         
-        # 只有在没有发送总结报告时才发送
+        # 优化：在发送前格式化内容
         if not self.has_sent_summary and hasattr(self, 'current_monitor_data') and self.current_monitor_data:
-            print("📤 发送未完成的监控总结通知...")
-            self.send_alert_notification(self.current_monitor_data)
+            print("📤 发送格式化的中断监控总结报告...")
+            
+            data = self.current_monitor_data
+            total_new = len(data.get('total_new_skus', set()))
+            timestamp = data.get('process_timestamp', '未知')
+            
+            # 构建易读的飞书消息内容
+            msg = f"🛑 监控程序已中断（手动停止或系统信号）\n"
+            msg += f"⏰ 中断时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            msg += f"📦 本轮已发现新SKU总数: {total_new} 个\n"
+            msg += f"📅 批次时间戳: {timestamp}\n\n"
+            
+            details = data.get('keyword_new_skus_details', {})
+            if details:
+                msg += "🎯 部分关键词扫描结果:\n"
+                for kw, detail in list(details.items()):  # 限制长度防止消息过长
+                    new_count = len(detail.get('new_skus', []))
+                    msg += f"- {kw}: 发现 {new_count} 个新商品\n"
+            
+            self.send_alert_notification(msg)
             self.has_sent_summary = True
-        
-        # self.save_monitor_results()
-        # print("✅ 数据保存完成，程序退出")
         
         # 给用户一次正常退出的机会
         print("💡 再次按 Ctrl+C 强制退出")
