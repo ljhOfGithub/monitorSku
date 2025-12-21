@@ -43,7 +43,7 @@ class JDSKUMonitor:
         self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
         
-        self.monitor_type = "已赚钱类"
+        self.monitor_type = "所有类"
         # 先初始化监控结果，防止后续访问失败
         self.init_monitor_results()
         
@@ -283,8 +283,8 @@ class JDSKUMonitor:
             'has_new_skus': len(all_new_skus_merged) > 0
         }
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        # with open(filepath, 'w', encoding='utf-8') as f:
+        #     json.dump(data, f, ensure_ascii=False, indent=2)
         
         # print(f"💾 新SKU记录已更新合并: {filename}")
     
@@ -385,8 +385,8 @@ class JDSKUMonitor:
             'new_skus_list': list(merged_new_skus_history)
         }
         
-        with open(details_filepath, 'w', encoding='utf-8') as f:
-            json.dump(details_data, f, ensure_ascii=False, indent=2)
+        # with open(details_filepath, 'w', encoding='utf-8') as f:
+        #     json.dump(details_data, f, ensure_ascii=False, indent=2)
         
         # print(f"💾 商品详情已更新合并: {details_filename}")
         return product_links
