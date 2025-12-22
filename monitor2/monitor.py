@@ -39,7 +39,7 @@ class JDSKUMonitor:
         # 使用 root_dir 格式配置路径
         self.all_skus_dir = os.path.join(root_dir, "all_skus")
         # 专门用于存储合并历史的目录
-        self.all_history_dir = os.path.join(root_dir, "all_history")
+        self.all_history_dir = os.path.join(root_dir, "all_history_with_brand")
         self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
         
@@ -193,8 +193,8 @@ class JDSKUMonitor:
         """加载所有已存在的SKU（从文件夹中扫描）"""
         all_skus = set()
         
-        # 1. 扫描 C:\data\all_history 中的所有 json 文件
-        history_main_dir = os.path.join(root_dir, "all_history")
+        # 1. 扫描 C:\data\all_history_with_brand 中的所有 json 文件
+        history_main_dir = os.path.join(root_dir, "all_history_with_brand")
         if os.path.exists(history_main_dir):
             for filename in os.listdir(history_main_dir):
                 if filename.endswith(".json"):
@@ -226,8 +226,13 @@ class JDSKUMonitor:
                         print(f"❌ 加载 SKU 历史文件 {filename} 时出错: {e}")
 
         return all_skus
-    def save_keyword_skus(self, keyword, skus, timestamp):
+    def save_keyword_skus(self, keyword_config, skus, timestamp):
         """保存关键词的SKU到文件 - 优化：按关键词和价格范围合并，并实时更新内存缓存（加锁）"""
+        keyword = keyword_config['keyword']
+        min_price = keyword_config['min_price']
+        max_price = keyword_config['max_price']
+        brand = keyword_config.get('brand', 'default')
+
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         # 使用固定文件名实现合并逻辑
         filename = f"{safe_keyword}_all_history.json"
@@ -253,6 +258,9 @@ class JDSKUMonitor:
             
             data = {
                 'keyword': keyword,
+                'brand': brand,           # 新增品牌
+                'min_price': min_price,   # 新增最低价
+                'max_price': max_price,   # 新增最高价
                 'skus': list(all_skus_merged),
                 'last_update_time': datetime.now().isoformat(),
                 'total_skus': len(all_skus_merged)
@@ -818,7 +826,7 @@ class JDSKUMonitor:
         new_products_for_keyword = [p for p in product_links if p['sku_id'] in new_skus_for_keyword]
         
         # 保存当前搜索的SKU (此方法内部会更新加锁的内存缓存并写文件)
-        self.save_keyword_skus(keyword, all_skus, timestamp)
+        self.save_keyword_skus(keyword_config, all_skus, timestamp)
         
         # 保存新SKU记录
         self.save_new_skus_record(keyword_config, new_skus_for_keyword, timestamp)
