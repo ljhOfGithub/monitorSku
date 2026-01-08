@@ -46,6 +46,8 @@ class JDSKUMonitor:
         self.all_history_dir = os.path.join(root_dir, "all_history_with_brand")
         self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
+        # 新增：推送历史缓存文件路径
+        self.push_history_file = os.path.join(root_dir, "push_history.json")
         
         self.monitor_type = "所有类"
         # 先初始化监控结果，防止后续访问失败
@@ -68,6 +70,11 @@ class JDSKUMonitor:
 
         # 优化：增加内存缓存，避免频繁扫描磁盘
         self.cached_historical_skus = set()
+        # 新增：推送历史缓存，格式：{sku_id: {"last_push_time": timestamp, "count": 1}}
+        self.push_history = {}
+        # 新增：推送冷却时间（秒），同一SKU在这个时间内不会重复推送
+        self.push_cooldown = 3600  # 1小时
+        
         # 增加锁，确保多线程更新缓存和文件时安全
         self.sku_lock = threading.Lock()
         
@@ -77,6 +84,9 @@ class JDSKUMonitor:
         
         # 创建线程池执行器 - 使用默认并发数
         self.executor = ThreadPoolExecutor(max_workers=5)
+        
+        # 新增：加载推送历史
+        self.load_push_history()
     
     def load_keywords_config(self):
         """从JSON文件加载关键词配置"""
@@ -169,6 +179,9 @@ class JDSKUMonitor:
             self.send_alert_notification(msg)
             self.has_sent_summary = True
         
+        # 保存推送历史
+        self.save_push_history()
+        
         # 给用户一次正常退出的机会
         print("💡 再次按 Ctrl+C 强制退出")
         
@@ -230,6 +243,67 @@ class JDSKUMonitor:
                         print(f"❌ 加载 SKU 历史文件 {filename} 时出错: {e}")
 
         return all_skus
+    
+    def load_push_history(self):
+        """加载推送历史记录"""
+        if os.path.exists(self.push_history_file):
+            try:
+                with open(self.push_history_file, 'r', encoding='utf-8') as f:
+                    self.push_history = json.load(f)
+                print(f"📚 加载推送历史记录: {len(self.push_history)} 个SKU")
+            except Exception as e:
+                print(f"❌ 加载推送历史时出错: {e}")
+                self.push_history = {}
+        else:
+            self.push_history = {}
+            print("📚 创建新的推送历史记录")
+    
+    def save_push_history(self):
+        """保存推送历史记录"""
+        try:
+            with open(self.push_history_file, 'w', encoding='utf-8') as f:
+                json.dump(self.push_history, f, ensure_ascii=False, indent=2)
+            # print("💾 推送历史已保存")
+        except Exception as e:
+            print(f"❌ 保存推送历史时出错: {e}")
+    
+    def update_push_history(self, sku_id):
+        """更新推送历史记录"""
+        current_time = datetime.now().isoformat()
+        if sku_id in self.push_history:
+            self.push_history[sku_id]["last_push_time"] = current_time
+            self.push_history[sku_id]["count"] += 1
+        else:
+            self.push_history[sku_id] = {
+                "last_push_time": current_time,
+                "count": 1,
+                "first_push_time": current_time
+            }
+        # 定期保存推送历史（每10个更新保存一次）
+        if len(self.push_history) % 10 == 0:
+            self.save_push_history()
+    
+    def should_push_sku(self, sku_id):
+        """判断是否应该推送这个SKU"""
+        if sku_id not in self.push_history:
+            return True
+        
+        last_push_time_str = self.push_history[sku_id].get("last_push_time", "")
+        if not last_push_time_str:
+            return True
+        
+        try:
+            last_push_time = datetime.fromisoformat(last_push_time_str)
+            time_diff = (datetime.now() - last_push_time).total_seconds()
+            
+            # 如果距离上次推送时间超过冷却时间，则重新推送
+            if time_diff > self.push_cooldown:
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(f"❌ 解析推送时间时出错: {e}")
+            return True
     
     def save_keyword_skus(self, keyword_config, skus, timestamp):
         """保存关键词的SKU到文件 - 优化：按关键词和价格范围合并，并实时更新内存缓存（加锁）"""
@@ -526,6 +600,11 @@ class JDSKUMonitor:
             sku = product['sku_id']
             title = product.get('title', '未知')
             
+            # 新增：检查是否需要推送这个SKU
+            if not self.should_push_sku(sku):
+                print(f"⏳ SKU {sku} 在冷却期内，跳过推送")
+                continue
+            
             message = f"🚨 发现新SKU！\n\n"
             message += f"📊 关键词: {keyword}\n"
             if min_price > 0 or max_price > 0:
@@ -536,8 +615,11 @@ class JDSKUMonitor:
             message += f"🔗 详情链接: https://item.m.jd.com/product/{sku}.html\n"
             message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             
-            # print(f"📤 立即发送新SKU通知: {sku}")
-            # self.send_to_all_webhooks(message)
+            print(f"📤 立即发送新SKU通知: {sku}")
+            self.send_to_all_webhooks(message)
+            
+            # 新增：更新推送历史
+            self.update_push_history(sku)
             
             # 单个SKU通知间短暂延迟
             time.sleep(2)
@@ -558,16 +640,29 @@ class JDSKUMonitor:
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
         
+        # 过滤需要推送的SKU
+        push_skus = []
+        push_products = []
+        for product in new_products:
+            sku = product['sku_id']
+            if self.should_push_sku(sku):
+                push_skus.append(sku)
+                push_products.append(product)
+        
+        if not push_skus:
+            print(f"ℹ️  关键词 '{keyword}' 没有需要推送的新SKU（都在冷却期内）")
+            return
+        
         message = f"⚠️⚠️⚠️ {self.monitor_type}京东商品监控通知\n"
         message += f"📊 关键词: {keyword}\n"
         if min_price > 0 or max_price > 0:
             message += f"💰 价格范围: {min_price}-{max_price}元\n"
-        message += f"🆕 发现新SKU: {len(new_products)} 个\n"
+        message += f"🆕 发现新SKU: {len(push_skus)} 个\n"
         message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         
         # 添加所有新商品链接和详情
         # message += "📦 所有新商品详情:\n"
-        for i, product in enumerate(new_products, 1):
+        for i, product in enumerate(push_products, 1):
             sku = product['sku_id']
             title = product.get('title', '未知')
             
@@ -579,6 +674,10 @@ class JDSKUMonitor:
         
         print(f"📤 发送关键词 '{keyword}' 批量通知到 {len(self.webhook_urls)} 个机器人...")
         self.send_to_all_webhooks(message)
+        
+        # 新增：更新推送历史
+        for sku in push_skus:
+            self.update_push_history(sku)
     
     def check_login_status(self, page_content):
         """检查用户登录状态"""
@@ -724,7 +823,7 @@ class JDSKUMonitor:
                                 title = desc_div.find('a').get_text(strip=True)
                             
                             title_lower = title.lower()
-                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由']
+                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由', '手表']
                             is_hot_title = any(keyword in title_lower for keyword in hot_keywords)
                             if(is_hot_title):
                                 continue
@@ -1073,6 +1172,9 @@ class JDSKUMonitor:
         
         print(f"\n✅ 本轮并发监控任务全部完成，共发现 {len(total_new_skus)} 个新SKU")
         self.log_detailed_monitoring_result(total_new_skus, process_timestamp, keyword_new_skus_details)
+        
+        # 保存推送历史
+        self.save_push_history()
     
     def update_keyword_stats(self, keyword_config, new_skus_count):
         """更新关键词统计"""
@@ -1197,7 +1299,7 @@ class JDSKUMonitor:
 
 def main():
     # 关键词配置文件路径
-    keywords_config_file = os.path.join(user_dir, "keywords_config_1219_all.json")
+    keywords_config_file = os.path.join(user_dir, "keywords_config_simple.json")
     
     # 检查关键词配置文件是否存在
     if not os.path.exists(keywords_config_file):
