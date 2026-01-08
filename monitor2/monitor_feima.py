@@ -15,7 +15,11 @@ import threading
 import signal
 import sys
 from urllib.parse import quote
-
+PROXY_CONFIG = {
+    "server": "q865.kdltps.com:15818",
+    "username": "t16612090902574",
+    "password": "2ow56b24"
+}
 # 修改：去掉了本地chrome目录列表，改为空配置
 chrome_dirs = []
 root_dir = "C:\\data"
@@ -595,15 +599,13 @@ class JDSKUMonitor:
         # 统一使用无状态浏览器模式
         browser = playwright.chromium.launch(
             headless=True,
+            # proxy=PROXY_CONFIG,
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--disable-features=VizDisplayCompositor',
                 '--disable-background-timer-throttling',
                 '--disable-backgrounding-occluded-windows',
                 '--disable-renderer-backgrounding',
-                "--disable-gpu",                # 禁用 GPU 硬件加速
-                "--disable-software-rasterizer", # 禁用软件光栅化器
-                "--use-gl=swiftshader",         # 显式指定使用软件渲染，防止报错弃用
             ]
         )
         
