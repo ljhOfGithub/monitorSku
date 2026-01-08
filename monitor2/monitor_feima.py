@@ -594,39 +594,84 @@ class JDSKUMonitor:
         """检查cookies是否过期"""
         return True
     
-    def create_browser_context(self, playwright, browser_index=1):
-        """创建浏览器上下文"""
-        # 统一使用无状态浏览器模式
-        browser = playwright.chromium.launch(
-            headless=True,
-            # proxy=PROXY_CONFIG,
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--disable-features=VizDisplayCompositor',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding',
-            ]
-        )
+    # def create_browser_context(self, playwright, browser_index=1):
+    #     """创建浏览器上下文"""
+    #     # 统一使用无状态浏览器模式
+    #     browser = playwright.chromium.launch(
+    #         headless=True,
+    #         # proxy=PROXY_CONFIG,
+    #         args=[
+    #             '--disable-blink-features=AutomationControlled',
+    #             '--disable-features=VizDisplayCompositor',
+    #             '--disable-background-timer-throttling',
+    #             '--disable-backgrounding-occluded-windows',
+    #             '--disable-renderer-backgrounding',
+    #         ]
+    #     )
         
-        context = browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            viewport={'width': 1920, 'height': 1080},
-            extra_http_headers={
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            }
-        )
+    #     context = browser.new_context(
+    #         user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    #         viewport={'width': 1920, 'height': 1080},
+    #         extra_http_headers={
+    #             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    #             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    #         }
+    #     )
         
-        # 隐藏自动化特征
-        context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined,
-            });
-        """)
+    #     # 隐藏自动化特征
+    #     context.add_init_script("""
+    #         # 1. 抹除 webdriver 标志
+    #         Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            
+    #         # 2. 模拟插件列表（自动化浏览器通常插件列表为空）
+    #         Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            
+    #         # 3. 伪装 Chrome 特征
+    #         window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+            
+    #         # 4. 伪装语言和硬件并发
+    #         Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh'] });
+    #         Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+    #     """)
         
-        return context
+    #     return context
     
+    def create_browser_context(self, playwright, browser_index=1):
+        """连接唯一的本地 Chrome 实例 (端口 9222)"""
+        endpoint_url = "http://127.0.0.1:9222"
+        
+        try:
+            print(f"🔗 正在接管本地 Chrome (127.0.0.1:9222)...")
+            # 使用 connect_over_cdp 连接
+            browser = playwright.chromium.connect_over_cdp(endpoint_url)
+            
+            # 接管第一个已有的上下文，如果没有则新建
+            if browser.contexts:
+                context = browser.contexts[0]
+            else:
+                context = browser.new_context()
+                
+            # 注入基本的防检测脚本（接管模式下其实指纹已经非常真实）
+            context.add_init_script("""
+                # 1. 抹除 webdriver 标志
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                
+                # 2. 模拟插件列表（自动化浏览器通常插件列表为空）
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                
+                # 3. 伪装 Chrome 特征
+                window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+                
+                # 4. 伪装语言和硬件并发
+                Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh'] });
+                Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+            """)
+            
+            return context
+        except Exception as e:
+            print(f"❌ 连接失败！请确保 Chrome 已通过 --remote-debugging-port=9222 启动。")
+            raise e
+
     def remove_hot_sale_products(self, html_content):
         """从HTML中移除热销商品部分"""
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -790,7 +835,12 @@ class JDSKUMonitor:
                 # 抛出异常以便上层重试机制捕获
                 raise Exception(f"搜索执行异常: {e}")
             finally:
-                context.close()
+                try:
+                    if 'page' in locals():
+                        page.close()
+                        print(f"🧹 [Debug] 已关闭关键词 '{keyword}' 的标签页")
+                except:
+                    pass
     
     def process_single_keyword(self, keyword_config, timestamp, browser_index=1):
         """处理单个关键词并立即发送通知"""
