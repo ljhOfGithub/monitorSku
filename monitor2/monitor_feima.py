@@ -13,8 +13,9 @@ import requests
 import schedule
 import threading
 import signal
-import sys
+import random
 from urllib.parse import quote
+import hashlib
 PROXY_CONFIG = {
     "server": "q865.kdltps.com:15818",
     "username": "t16612090902574",
@@ -46,8 +47,8 @@ class JDSKUMonitor:
         self.all_history_dir = os.path.join(root_dir, "all_history_with_brand")
         self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
-        # 新增：推送历史缓存文件路径
-        self.push_history_file = os.path.join(root_dir, "push_history.json")
+        # 新增：推送历史缓存文件目录
+        self.push_history_dir = os.path.join(root_dir, "push_history")
         
         self.monitor_type = "所有类"
         # 先初始化监控结果，防止后续访问失败
@@ -70,13 +71,19 @@ class JDSKUMonitor:
 
         # 优化：增加内存缓存，避免频繁扫描磁盘
         self.cached_historical_skus = set()
-        # 新增：推送历史缓存，格式：{sku_id: {"last_push_time": timestamp, "count": 1}}
-        self.push_history = {}
+        # 新增：推送历史缓存，格式：{bucket_id: {sku_id: {"last_push_time": timestamp, "count": 1}}}
+        self.push_history_cache = {}
         # 新增：推送冷却时间（秒），同一SKU在这个时间内不会重复推送
         self.push_cooldown = 3600  # 1小时
+        # 新增：推送历史分桶数量（将SKU分散到多个文件中）
+        self.push_history_buckets = 100  # 100个分桶，每个文件包含约1%的SKU
         
         # 增加锁，确保多线程更新缓存和文件时安全
         self.sku_lock = threading.Lock()
+        # 新增：推送历史文件读写锁（字典锁，每个分桶有独立的锁）
+        self.push_file_locks = {i: threading.Lock() for i in range(self.push_history_buckets)}
+        # 新增：推送历史缓存锁
+        self.push_cache_lock = threading.Lock()
         
         # 设置信号处理
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -85,8 +92,8 @@ class JDSKUMonitor:
         # 创建线程池执行器 - 使用默认并发数
         self.executor = ThreadPoolExecutor(max_workers=5)
         
-        # 新增：加载推送历史
-        self.load_push_history()
+        # 新增：加载推送历史缓存
+        self.load_push_history_cache()
     
     def load_keywords_config(self):
         """从JSON文件加载关键词配置"""
@@ -179,8 +186,8 @@ class JDSKUMonitor:
             self.send_alert_notification(msg)
             self.has_sent_summary = True
         
-        # 保存推送历史
-        self.save_push_history()
+        # 保存推送历史缓存
+        self.save_all_push_history()
         
         # 给用户一次正常退出的机会
         print("💡 再次按 Ctrl+C 强制退出")
@@ -199,6 +206,7 @@ class JDSKUMonitor:
             os.path.join(root_dir, "new_skus_records"),
             self.all_skus_dir,
             self.all_history_dir,
+            self.push_history_dir,  # 新增：推送历史目录
         ]
         
         for directory in directories:
@@ -244,51 +252,101 @@ class JDSKUMonitor:
 
         return all_skus
     
-    def load_push_history(self):
-        """加载推送历史记录"""
-        if os.path.exists(self.push_history_file):
+    def get_sku_bucket_id(self, sku_id):
+        """根据SKU ID计算分桶ID（0-99）"""
+        # 使用哈希函数确保均匀分布
+        hash_obj = hashlib.md5(sku_id.encode())
+        hash_int = int(hash_obj.hexdigest(), 16)
+        return hash_int % self.push_history_buckets
+    
+    def get_push_history_filepath(self, bucket_id):
+        """获取推送历史文件路径"""
+        return os.path.join(self.push_history_dir, f"push_history_bucket_{bucket_id:03d}.json")
+    
+    def load_push_history_bucket(self, bucket_id):
+        """加载单个分桶的推送历史"""
+        filepath = self.get_push_history_filepath(bucket_id)
+        
+        with self.push_file_locks[bucket_id]:
+            if os.path.exists(filepath):
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        bucket_data = json.load(f)
+                    return bucket_data
+                except Exception as e:
+                    print(f"❌ 加载推送历史分桶 {bucket_id} 时出错: {e}")
+                    return {}
+            else:
+                return {}
+    
+    def save_push_history_bucket(self, bucket_id, bucket_data):
+        """保存单个分桶的推送历史"""
+        filepath = self.get_push_history_filepath(bucket_id)
+        
+        with self.push_file_locks[bucket_id]:
             try:
-                with open(self.push_history_file, 'r', encoding='utf-8') as f:
-                    self.push_history = json.load(f)
-                print(f"📚 加载推送历史记录: {len(self.push_history)} 个SKU")
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(bucket_data, f, ensure_ascii=False, indent=2)
+                return True
             except Exception as e:
-                print(f"❌ 加载推送历史时出错: {e}")
-                self.push_history = {}
-        else:
-            self.push_history = {}
-            print("📚 创建新的推送历史记录")
+                print(f"❌ 保存推送历史分桶 {bucket_id} 时出错: {e}")
+                return False
     
-    def save_push_history(self):
-        """保存推送历史记录"""
-        try:
-            with open(self.push_history_file, 'w', encoding='utf-8') as f:
-                json.dump(self.push_history, f, ensure_ascii=False, indent=2)
-            # print("💾 推送历史已保存")
-        except Exception as e:
-            print(f"❌ 保存推送历史时出错: {e}")
+    def load_push_history_cache(self):
+        """加载推送历史缓存（懒加载模式）"""
+        print("📚 初始化推送历史缓存...")
+        # 初始化空缓存，实际使用时按需加载
+        self.push_history_cache = {}
+        print("✅ 推送历史缓存初始化完成")
     
-    def update_push_history(self, sku_id):
-        """更新推送历史记录"""
-        current_time = datetime.now().isoformat()
-        if sku_id in self.push_history:
-            self.push_history[sku_id]["last_push_time"] = current_time
-            self.push_history[sku_id]["count"] += 1
-        else:
-            self.push_history[sku_id] = {
-                "last_push_time": current_time,
-                "count": 1,
-                "first_push_time": current_time
-            }
-        # 定期保存推送历史（每10个更新保存一次）
-        if len(self.push_history) % 10 == 0:
-            self.save_push_history()
+    def get_push_history_for_sku(self, sku_id):
+        """获取指定SKU的推送历史（按需加载）"""
+        bucket_id = self.get_sku_bucket_id(sku_id)
+        
+        with self.push_cache_lock:
+            # 如果分桶未加载，先加载
+            if bucket_id not in self.push_history_cache:
+                self.push_history_cache[bucket_id] = self.load_push_history_bucket(bucket_id)
+            
+            # 返回该SKU的推送历史，如果没有则返回None
+            return self.push_history_cache[bucket_id].get(sku_id)
+    
+    def update_push_history_for_sku(self, sku_id, push_data):
+        """更新指定SKU的推送历史"""
+        bucket_id = self.get_sku_bucket_id(sku_id)
+        
+        with self.push_cache_lock:
+            # 确保分桶已加载
+            if bucket_id not in self.push_history_cache:
+                self.push_history_cache[bucket_id] = self.load_push_history_bucket(bucket_id)
+            
+            # 更新缓存
+            self.push_history_cache[bucket_id][sku_id] = push_data
+            
+            # 保存到文件
+            return self.save_push_history_bucket(bucket_id, self.push_history_cache[bucket_id])
+    
+    def save_all_push_history(self):
+        """保存所有推送历史缓存到文件"""
+        print("💾 正在保存所有推送历史...")
+        saved_count = 0
+        
+        with self.push_cache_lock:
+            for bucket_id, bucket_data in self.push_history_cache.items():
+                if bucket_data:  # 只保存非空的分桶
+                    if self.save_push_history_bucket(bucket_id, bucket_data):
+                        saved_count += 1
+        
+        print(f"✅ 推送历史保存完成，共保存 {saved_count} 个分桶")
     
     def should_push_sku(self, sku_id):
         """判断是否应该推送这个SKU"""
-        if sku_id not in self.push_history:
+        push_history = self.get_push_history_for_sku(sku_id)
+        
+        if not push_history:
             return True
         
-        last_push_time_str = self.push_history[sku_id].get("last_push_time", "")
+        last_push_time_str = push_history.get("last_push_time", "")
         if not last_push_time_str:
             return True
         
@@ -304,6 +362,35 @@ class JDSKUMonitor:
         except Exception as e:
             print(f"❌ 解析推送时间时出错: {e}")
             return True
+    
+    def update_push_history(self, sku_id):
+        """更新SKU的推送历史记录"""
+        current_time = datetime.now().isoformat()
+        
+        # 获取现有历史（如果有）
+        existing_history = self.get_push_history_for_sku(sku_id)
+        
+        if existing_history:
+            # 更新现有记录
+            push_data = {
+                "last_push_time": current_time,
+                "count": existing_history.get("count", 0) + 1,
+                "first_push_time": existing_history.get("first_push_time", current_time)
+            }
+        else:
+            # 创建新记录
+            push_data = {
+                "last_push_time": current_time,
+                "count": 1,
+                "first_push_time": current_time
+            }
+        
+        # 保存更新
+        self.update_push_history_for_sku(sku_id, push_data)
+        
+        # 定期清理缓存（每更新100个SKU清理一次）
+        if len(self.push_history_cache) > 0 and sum(len(b) for b in self.push_history_cache.values()) % 100 == 0:
+            self.save_all_push_history()
     
     def save_keyword_skus(self, keyword_config, skus, timestamp):
         """保存关键词的SKU到文件 - 优化：按关键词和价格范围合并，并实时更新内存缓存（加锁）"""
@@ -823,7 +910,7 @@ class JDSKUMonitor:
                                 title = desc_div.find('a').get_text(strip=True)
                             
                             title_lower = title.lower()
-                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由', '手表']
+                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由']
                             is_hot_title = any(keyword in title_lower for keyword in hot_keywords)
                             if(is_hot_title):
                                 continue
@@ -1078,7 +1165,7 @@ class JDSKUMonitor:
         #     return 1
         # else:
         #     return 5
-        return 1
+        return random.randint(5, 10)
     
     def monitor_keywords_concurrent(self):
         """并发监控所有关键词 - 包含关键词池失败重试机制"""
@@ -1174,7 +1261,7 @@ class JDSKUMonitor:
         self.log_detailed_monitoring_result(total_new_skus, process_timestamp, keyword_new_skus_details)
         
         # 保存推送历史
-        self.save_push_history()
+        self.save_all_push_history()
     
     def update_keyword_stats(self, keyword_config, new_skus_count):
         """更新关键词统计"""
