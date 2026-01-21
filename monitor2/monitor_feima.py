@@ -1161,11 +1161,10 @@ class JDSKUMonitor:
         current_hour = now.hour
         
         # 早上9点-11点或晚上6点-8点，使用15分钟间隔
-        # if (9 <= current_hour <= 15) or (17 <= current_hour <= 20) or (22 <= current_hour <= 24) or (0 <= current_hour <= 2):
-        #     return 1
-        # else:
-        #     return 5
-        return random.randint(5, 10)
+        if (8 <= current_hour <= 24):
+            return random.randint(30, 60)
+        else:
+            return 7 * 60
     
     def monitor_keywords_concurrent(self):
         """并发监控所有关键词 - 包含关键词池失败重试机制"""
@@ -1358,11 +1357,28 @@ class JDSKUMonitor:
         
         print(f"\n🔄 定时任务已启动，下次执行在 {interval_minutes} 分钟后...")
         
-        # 运行调度器
+        # 运行调度器 - 修复：在循环中检查 is_running 状态
         while self.is_running:
             try:
-                schedule.run_pending()
-                time.sleep(1)  # 每秒检查一次，提高响应速度
+                # 使用 schedule.idle_seconds() 而不是阻塞的 run_pending()
+                seconds_to_next = schedule.idle_seconds()
+                
+                if seconds_to_next is None:
+                    # 没有任务时等待1秒
+                    seconds_to_next = 1
+                elif seconds_to_next > 0:
+                    # 有任务时，分批检查退出信号
+                    wait_increment = 0.5  # 每0.5秒检查一次
+                    while seconds_to_next > 0 and self.is_running:
+                        sleep_time = min(wait_increment, seconds_to_next)
+                        time.sleep(sleep_time)
+                        seconds_to_next -= sleep_time
+                
+                # 如果程序还在运行，执行待处理的任务
+                if self.is_running:
+                    schedule.run_pending()
+                else:
+                    break
                 
                 # 检查是否需要调整执行间隔
                 if datetime.now().minute == 0:
@@ -1381,7 +1397,10 @@ class JDSKUMonitor:
                     self.signal_handler(signal.SIGINT, None)
             except Exception as e:
                 print(f"❌ 调度器错误: {e}")
-                time.sleep(1)
+                if self.is_running:
+                    time.sleep(1)
+        
+        print("🛑 监控程序已停止")
 
 
 def main():
