@@ -1,171 +1,24 @@
-import asyncio
-import random
+from playwright.sync_api import sync_playwright
 import time
-from datetime import datetime
-from curl_cffi import AsyncSession
-from typing import List, Dict, Optional
-import aiofiles
-class JDMonitor:
-    def __init__(self):
-        self.proxy_url = "http://t16898551040789:ryp8vm7v@d480.kdltps.com:15818"
-        self.max_retry = 5  # 保留你设置的5次重试
-        self.concurrency = 4  # 并发请求数（每次5个）
-        self.interval = 5  # 批次间隔5秒
-
-    def get_current_data(self):
-        """保留你原始的时间格式化逻辑"""
-        current_time = datetime.now()
-        simple_format = current_time.strftime("%H:%M:%S")
-        return simple_format
-
-    async def fetch_jd_product(self, url: str) -> Optional[Dict]:
-        """
-        保留你原始的单URL请求逻辑，修复异步错误+完善异常处理
-        :param url: 原始URL
-        :return: 商品信息字典 / None（重试5次失败）
-        """
-        # 保留你原始的URL拼接逻辑
-        try:
-            url = 'https://item.m.jd.com/product/' + url.split('/')[-1].split('.html')[0] + '.html'
-        except Exception as e:
-            print(f"URL拼接失败：{url}，错误：{e}")
-            return None
-        # headers=HeaderGenerator().generate()
-        random.randint(1,9)
-        headers = {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "cache-control": "no-cache",
-            "pragma": "no-cache",
-            "priority": "u=0, i",
-            "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "user-agent": fr"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.{random.randint(1,9)}.{random.randint(1,9)}.{random.randint(1,9)} Safari/537.36"
-        }
-        for retry in range(self.max_retry):
-            try:
-                async with AsyncSession() as s:
-                    r = await s.get(url, headers=headers)
-                # 修复核心错误：异步读取响应文本（添加await）
-                html_text =r.text
-                print(html_text)
-                item = None
-                # 保留你原始的双重标题解析逻辑
-                if 'inspectSkuName' in html_text:
-                    title = html_text.split('"inspectSkuName":"')[-1].split('","inspectReportId"')[0]
-                    price = html_text.split('"price":"')[-1].split('"')[0]
-                    item = {
-                        'title': title,
-                        'price': price,
-                        'url': url,
-                        'current_time': self.get_current_data()
-                    }
-                elif 'reInfo":{"title":"' in html_text:
-                    title = html_text.split('reInfo":{"title":"')[-1].split('","shortTitle"')[0]
-                    item = {
-                        'title': title,
-                        'price': "不支持查看价格",
-                        'url': url,
-                        'current_time': self.get_current_data()
-                    }
-
-                if item:
-                    print(item)
-                    await self.async_write_to_txt('log.txt', str(item)+"\n")
-                    return item
-                # 若未匹配到任何字段，继续重试
-                raise ValueError("要求登录")
-            except Exception as e:
-                # 重试时打印错误信息（便于调试）
-                print(f"第{retry + 1}次请求失败：{url}，错误：{e}")
-                await self.async_write_to_txt('log.txt',f"第{retry + 1}次请求失败：{url}，错误：{e}\n")
-                # 重试间隔0.5秒，避免高频请求
-                # await asyncio.sleep(0.5)
-
-        return None
-
-    async def _batch_fetch(self, url_list: List[str]):
-        """
-        批次并发请求（控制5个并发）
-        :param url_list: 待请求的URL列表
-        """
-        # 信号量控制并发数
-        semaphore = asyncio.Semaphore(self.concurrency)
-
-        # 包装并发任务，限制并发
-        async def bounded_fetch(url):
-            async with semaphore:
-                return await self.fetch_jd_product(url)
-
-        # 创建所有任务并并发执行
-        tasks = [bounded_fetch(url) for url in url_list]
-        await asyncio.gather(*tasks)
-
-    async def run_monitor(self, url_list: List[str]):
-        """
-        循环执行监控（批次间隔5秒）
-        :param url_list: 完整的URL列表
-        """
-        print(f"🚀 开始监控，URL总数：{len(url_list)}，并发数：{self.concurrency}，批次间隔：{self.interval}秒")
-        while True:
-            start_time = time.time()
-            # 执行批次并发请求
-            await self._batch_fetch(url_list)
-            # 计算耗时，保证间隔精准5秒（修复类型提示：0 → 0.0）
-            elapsed_time = time.time() - start_time
-            sleep_time = max(0.0, self.interval - elapsed_time)  # 关键：0 → 0.0
-            print(f"\n📌 本批次完成，等待{sleep_time:.1f}秒后开始下一批次...\n")
-            await asyncio.sleep(sleep_time)
-        #
-        # while True:
-        #     await self.fetch_jd_product("https://item.jd.com/100198157293.html")
-
-
-    async def async_write_to_txt(self,file_path: str, content: str,):
-        """
-        异步将字符串写入txt文件的函数
-
-        Args:
-            file_path: 目标文件路径（如 "test.txt"）
-            content: 要写入的字符串内容
-            mode: 文件打开模式，默认 'w'（覆盖写入），追加用 'a'
-            encoding: 文件编码，默认 utf-8
-        """
-        try:
-            # 异步打开文件
-            async with aiofiles.open(file=file_path,mode='a',encoding='utf-8') as f:
-                # 异步写入内容
-                await f.write(content)
-        except Exception as e:
-            print(f"写入失败：{e}")
-
-# ==================== 以下是修改的JDSKUMonitor类 ====================
-
 import re
 import json
 import csv
 import os
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from urllib.parse import parse_qs, urlparse, quote
+from urllib.parse import parse_qs, urlparse
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import schedule
 import threading
 import signal
-import hashlib
-
+import sys
+from urllib.parse import quote
 PROXY_CONFIG = {
-    "server": "d480.kdltps.com:15818",
-    "username": "t16898551040789",
-    "password": "ryp8vm7v"
+    "server": "q865.kdltps.com:15818",
+    "username": "t16612090902574",
+    "password": "2ow56b24"
 }
 # 修改：去掉了本地chrome目录列表，改为空配置
 chrome_dirs = []
@@ -193,8 +46,6 @@ class JDSKUMonitor:
         self.all_history_dir = os.path.join(root_dir, "all_history_with_brand")
         self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
-        # 新增：推送历史缓存文件目录
-        self.push_history_dir = os.path.join(root_dir, "push_history")
         
         self.monitor_type = "所有类"
         # 先初始化监控结果，防止后续访问失败
@@ -217,19 +68,8 @@ class JDSKUMonitor:
 
         # 优化：增加内存缓存，避免频繁扫描磁盘
         self.cached_historical_skus = set()
-        # 新增：推送历史缓存，格式：{bucket_id: {sku_id: {"last_push_time": timestamp, "count": 1}}}
-        self.push_history_cache = {}
-        # 新增：推送冷却时间（秒），同一SKU在这个时间内不会重复推送
-        self.push_cooldown = 3600  # 1小时
-        # 新增：推送历史分桶数量（将SKU分散到多个文件中）
-        self.push_history_buckets = 100  # 100个分桶，每个文件包含约1%的SKU
-        
         # 增加锁，确保多线程更新缓存和文件时安全
         self.sku_lock = threading.Lock()
-        # 新增：推送历史文件读写锁（字典锁，每个分桶有独立的锁）
-        self.push_file_locks = {i: threading.Lock() for i in range(self.push_history_buckets)}
-        # 新增：推送历史缓存锁
-        self.push_cache_lock = threading.Lock()
         
         # 设置信号处理
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -237,14 +77,6 @@ class JDSKUMonitor:
         
         # 创建线程池执行器 - 使用默认并发数
         self.executor = ThreadPoolExecutor(max_workers=5)
-        
-        # 新增：加载推送历史缓存
-        self.load_push_history_cache()
-        
-        # 新增：curl_cffi相关的配置
-        self.proxy_url = "http://t16898551040789:ryp8vm7v@d480.kdltps.com:15818"
-        self.max_retry = 3
-        self.timeout = 30
     
     def load_keywords_config(self):
         """从JSON文件加载关键词配置"""
@@ -337,9 +169,6 @@ class JDSKUMonitor:
             self.send_alert_notification(msg)
             self.has_sent_summary = True
         
-        # 保存推送历史缓存
-        self.save_all_push_history()
-        
         # 给用户一次正常退出的机会
         print("💡 再次按 Ctrl+C 强制退出")
         
@@ -357,7 +186,6 @@ class JDSKUMonitor:
             os.path.join(root_dir, "new_skus_records"),
             self.all_skus_dir,
             self.all_history_dir,
-            self.push_history_dir,  # 新增：推送历史目录
         ]
         
         for directory in directories:
@@ -402,146 +230,6 @@ class JDSKUMonitor:
                         print(f"❌ 加载 SKU 历史文件 {filename} 时出错: {e}")
 
         return all_skus
-    
-    def get_sku_bucket_id(self, sku_id):
-        """根据SKU ID计算分桶ID（0-99）"""
-        # 使用哈希函数确保均匀分布
-        hash_obj = hashlib.md5(sku_id.encode())
-        hash_int = int(hash_obj.hexdigest(), 16)
-        return hash_int % self.push_history_buckets
-    
-    def get_push_history_filepath(self, bucket_id):
-        """获取推送历史文件路径"""
-        return os.path.join(self.push_history_dir, f"push_history_bucket_{bucket_id:03d}.json")
-    
-    def load_push_history_bucket(self, bucket_id):
-        """加载单个分桶的推送历史"""
-        filepath = self.get_push_history_filepath(bucket_id)
-        
-        with self.push_file_locks[bucket_id]:
-            if os.path.exists(filepath):
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        bucket_data = json.load(f)
-                    return bucket_data
-                except Exception as e:
-                    print(f"❌ 加载推送历史分桶 {bucket_id} 时出错: {e}")
-                    return {}
-            else:
-                return {}
-    
-    def save_push_history_bucket(self, bucket_id, bucket_data):
-        """保存单个分桶的推送历史"""
-        filepath = self.get_push_history_filepath(bucket_id)
-        
-        with self.push_file_locks[bucket_id]:
-            try:
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    json.dump(bucket_data, f, ensure_ascii=False, indent=2)
-                return True
-            except Exception as e:
-                print(f"❌ 保存推送历史分桶 {bucket_id} 时出错: {e}")
-                return False
-    
-    def load_push_history_cache(self):
-        """加载推送历史缓存（懒加载模式）"""
-        print("📚 初始化推送历史缓存...")
-        # 初始化空缓存，实际使用时按需加载
-        self.push_history_cache = {}
-        print("✅ 推送历史缓存初始化完成")
-    
-    def get_push_history_for_sku(self, sku_id):
-        """获取指定SKU的推送历史（按需加载）"""
-        bucket_id = self.get_sku_bucket_id(sku_id)
-        
-        with self.push_cache_lock:
-            # 如果分桶未加载，先加载
-            if bucket_id not in self.push_history_cache:
-                self.push_history_cache[bucket_id] = self.load_push_history_bucket(bucket_id)
-            
-            # 返回该SKU的推送历史，如果没有则返回None
-            return self.push_history_cache[bucket_id].get(sku_id)
-    
-    def update_push_history_for_sku(self, sku_id, push_data):
-        """更新指定SKU的推送历史"""
-        bucket_id = self.get_sku_bucket_id(sku_id)
-        
-        with self.push_cache_lock:
-            # 确保分桶已加载
-            if bucket_id not in self.push_history_cache:
-                self.push_history_cache[bucket_id] = self.load_push_history_bucket(bucket_id)
-            
-            # 更新缓存
-            self.push_history_cache[bucket_id][sku_id] = push_data
-            
-            # 保存到文件
-            return self.save_push_history_bucket(bucket_id, self.push_history_cache[bucket_id])
-    
-    def save_all_push_history(self):
-        """保存所有推送历史缓存到文件"""
-        print("💾 正在保存所有推送历史...")
-        saved_count = 0
-        
-        with self.push_cache_lock:
-            for bucket_id, bucket_data in self.push_history_cache.items():
-                if bucket_data:  # 只保存非空的分桶
-                    if self.save_push_history_bucket(bucket_id, bucket_data):
-                        saved_count += 1
-        
-        print(f"✅ 推送历史保存完成，共保存 {saved_count} 个分桶")
-    
-    def should_push_sku(self, sku_id):
-        """判断是否应该推送这个SKU"""
-        push_history = self.get_push_history_for_sku(sku_id)
-        
-        if not push_history:
-            return True
-        
-        last_push_time_str = push_history.get("last_push_time", "")
-        if not last_push_time_str:
-            return True
-        
-        try:
-            last_push_time = datetime.fromisoformat(last_push_time_str)
-            time_diff = (datetime.now() - last_push_time).total_seconds()
-            
-            # 如果距离上次推送时间超过冷却时间，则重新推送
-            if time_diff > self.push_cooldown:
-                return True
-            else:
-                return False
-        except Exception as e:
-            print(f"❌ 解析推送时间时出错: {e}")
-            return True
-    
-    def update_push_history(self, sku_id):
-        """更新SKU的推送历史记录"""
-        current_time = datetime.now().isoformat()
-        
-        # 获取现有历史（如果有）
-        existing_history = self.get_push_history_for_sku(sku_id)
-        
-        if existing_history:
-            # 更新现有记录
-            push_data = {
-                "last_push_time": current_time,
-                "count": existing_history.get("count", 0) + 1,
-                "first_push_time": existing_history.get("first_push_time", current_time)
-            }
-        else:
-            # 创建新记录
-            push_data = {
-                "last_push_time": current_time,
-                "count": 1,
-                "first_push_time": current_time
-            }
-        
-        # 保存更新
-        self.update_push_history_for_sku(sku_id, push_data)
-        
-        # 定期清理缓存（每更新100个SKU清理一次）
-        if len(self.push_history_cache) > 0 and sum(len(b) for b in self.push_history_cache.values()) % 100 == 0:
-            self.save_all_push_history()
     
     def save_keyword_skus(self, keyword_config, skus, timestamp):
         """保存关键词的SKU到文件 - 优化：按关键词和价格范围合并，并实时更新内存缓存（加锁）"""
@@ -838,11 +526,6 @@ class JDSKUMonitor:
             sku = product['sku_id']
             title = product.get('title', '未知')
             
-            # 新增：检查是否需要推送这个SKU
-            if not self.should_push_sku(sku):
-                print(f"⏳ SKU {sku} 在冷却期内，跳过推送")
-                continue
-            
             message = f"🚨 发现新SKU！\n\n"
             message += f"📊 关键词: {keyword}\n"
             if min_price > 0 or max_price > 0:
@@ -853,11 +536,8 @@ class JDSKUMonitor:
             message += f"🔗 详情链接: https://item.m.jd.com/product/{sku}.html\n"
             message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             
-            print(f"📤 立即发送新SKU通知: {sku}")
-            self.send_to_all_webhooks(message)
-            
-            # 新增：更新推送历史
-            self.update_push_history(sku)
+            # print(f"📤 立即发送新SKU通知: {sku}")
+            # self.send_to_all_webhooks(message)
             
             # 单个SKU通知间短暂延迟
             time.sleep(2)
@@ -878,29 +558,16 @@ class JDSKUMonitor:
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
         
-        # 过滤需要推送的SKU
-        push_skus = []
-        push_products = []
-        for product in new_products:
-            sku = product['sku_id']
-            if self.should_push_sku(sku):
-                push_skus.append(sku)
-                push_products.append(product)
-        
-        if not push_skus:
-            print(f"ℹ️  关键词 '{keyword}' 没有需要推送的新SKU（都在冷却期内）")
-            return
-        
         message = f"⚠️⚠️⚠️ {self.monitor_type}京东商品监控通知\n"
         message += f"📊 关键词: {keyword}\n"
         if min_price > 0 or max_price > 0:
             message += f"💰 价格范围: {min_price}-{max_price}元\n"
-        message += f"🆕 发现新SKU: {len(push_skus)} 个\n"
+        message += f"🆕 发现新SKU: {len(new_products)} 个\n"
         message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         
         # 添加所有新商品链接和详情
         # message += "📦 所有新商品详情:\n"
-        for i, product in enumerate(push_products, 1):
+        for i, product in enumerate(new_products, 1):
             sku = product['sku_id']
             title = product.get('title', '未知')
             
@@ -912,10 +579,6 @@ class JDSKUMonitor:
         
         print(f"📤 发送关键词 '{keyword}' 批量通知到 {len(self.webhook_urls)} 个机器人...")
         self.send_to_all_webhooks(message)
-        
-        # 新增：更新推送历史
-        for sku in push_skus:
-            self.update_push_history(sku)
     
     def check_login_status(self, page_content):
         """检查用户登录状态"""
@@ -930,10 +593,7 @@ class JDSKUMonitor:
     def check_cookies_validity(self, page, browser_index=1):
         """检查cookies是否过期"""
         return True
-
-    # ==================== 以下是修改的代码部分 ====================
     
-    # ==================== 原始Playwright代码（注释掉） ====================
     # def create_browser_context(self, playwright, browser_index=1):
     #     """创建浏览器上下文"""
     #     # 统一使用无状态浏览器模式
@@ -975,218 +635,43 @@ class JDSKUMonitor:
     #     """)
         
     #     return context
-
-    # def create_browser_context(self, playwright, browser_index=1):
-    #     """连接唯一的本地 Chrome 实例 (端口 9222)"""
-    #     endpoint_url = "http://127.0.0.1:9222"
-        
-    #     try:
-    #         print(f"🔗 正在接管本地 Chrome (127.0.0.1:9222)...")
-    #         # 使用 connect_over_cdp 连接
-    #         browser = playwright.chromium.connect_over_cdp(endpoint_url)
-            
-    #         # 接管第一个已有的上下文，如果没有则新建
-    #         if browser.contexts:
-    #             context = browser.contexts[0]
-    #         else:
-    #             context = browser.new_context()
-                
-    #         # 注入基本的防检测脚本（接管模式下其实指纹已经非常真实）
-    #         context.add_init_script("""
-    #             # 1. 抹除 webdriver 标志
-    #             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                
-    #             # 2. 模拟插件列表（自动化浏览器通常插件列表为空）
-    #             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-                
-    #             # 3. 伪装 Chrome 特征
-    #             window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
-                
-    #             # 4. 伪装语言和硬件并发
-    #             Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh'] });
-    #             Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-    #         """)
-            
-    #         return context
-    #     except Exception as e:
-    #         print(f"❌ 连接失败！请确保 Chrome 已通过 --remote-debugging-port=9222 启动。")
-    #         raise e
-
-    # ==================== 新增curl_cffi代码 ====================
     
-    def generate_headers(self):
-        """生成随机请求头"""
-        
-        return {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "cache-control": "no-cache",
-            "pragma": "no-cache",
-            "priority": "u=0, i",
-            "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "user-agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.{random.randint(1,9)}.{random.randint(1,9)}.{random.randint(1,9)} Safari/537.36"
-        }
-    
-    async def fetch_with_curl_cffi(self, url: str, max_retries: int = None):
-        """使用curl_cffi获取网页内容"""
-        if max_retries is None:
-            max_retries = self.max_retry
-            
-        headers = self.generate_headers()
-        
-        for retry in range(max_retries):
-            try:
-                async with AsyncSession() as session:
-                    # 使用impersonate参数模拟真实浏览器指纹
-                    response = await session.get(
-                        url,
-                        headers=headers,
-                        proxy=self.proxy_url,
-                        timeout=self.timeout,
-                        impersonate="chrome110"  # 模拟Chrome浏览器
-                    )
-                    
-                    if response.status_code == 200:
-                        html_text = response.text
-                        return html_text
-                    else:
-                        print(f"❌ 请求失败，状态码: {response.status_code}, URL: {url}")
-                        
-            except Exception as e:
-                print(f"❌ 第{retry + 1}次请求失败: {url}, 错误: {e}")
-                
-            # 重试间隔
-            if retry < max_retries - 1:
-                await asyncio.sleep(random.uniform(1, 3))
-        
-        return None
-    
-    def search_jd_products_sync(self, keyword_config, timestamp, browser_index=1):
-        """同步版本的京东商品搜索（用于线程池）"""
-        # 检查是否正在关闭
-        if not self.is_running:
-            return []
-            
-        keyword = keyword_config['keyword']
-        min_price = keyword_config['min_price']
-        max_price = keyword_config['max_price']
-        brand = keyword_config['brand']
-
-        # 品牌编码转换
-        if brand == 'huawei':
-            brand_str = '%25E5%258D%258E%25E4%25B8%25BA%25EF%25BC%2588HUAWEI%25EF%25BC%2589'
-        elif brand == 'honor':
-            brand_str = '%25E8%258D%25A3%25E8%2580%2580%25EF%25BC%2588HONOR%25EF%25BC%2589'
-        elif brand == 'xiaomi':
-            brand_str = '%25E5%25B0%258F%25E7%25B1%25B3%25EF%25BC%2588MI%25EF%25BC%2589'
-        elif brand == 'oppo':
-            brand_str = 'OPPO'
-        elif brand == 'oneplus':
-            brand_str = '%25E4%25B8%2580%25E5%258A%25A0'
-        elif brand == 'realme':
-            brand_str = '%25E7%259C%259F%25E6%2588%2591%25EF%25BC%2588realme%25EF%25BC%2589'
-        elif brand == 'vivo' or brand == 'iqoo':
-            brand_str = 'vivo'
-        else:
-            brand_str = ''
-        
-        # 构建搜索URL
-        if min_price > 0 or max_price > 0:
-            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={quote(quote(keyword, encoding='utf-8'), encoding='utf-8')}&ext_attr=5522:90100&exp_brand={brand_str}"
-            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
-        else:
-            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-0-0-0-1-1-60.html?keyword={quote(keyword, encoding='utf-8')}"
-            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-0-0-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
-        
-        print(f"🌐 浏览器 {browser_index} 搜索关键词: {keyword} 搜索URL: {search_url}")
+    def create_browser_context(self, playwright, browser_index=1):
+        """连接唯一的本地 Chrome 实例 (端口 9222)"""
+        endpoint_url = "http://127.0.0.1:9222"
         
         try:
-            # 使用asyncio在同步函数中运行异步代码
-            html_content = asyncio.run(self.fetch_with_curl_cffi(search_url))
+            print(f"🔗 正在接管本地 Chrome (127.0.0.1:9222)...")
+            # 使用 connect_over_cdp 连接
+            browser = playwright.chromium.connect_over_cdp(endpoint_url)
             
-            if html_content is None:
-                print(f"❌ 浏览器 {browser_index} 搜索关键词 '{keyword}' 失败，返回空结果")
-                return [], search_url, original_url
+            # 接管第一个已有的上下文，如果没有则新建
+            if browser.contexts:
+                context = browser.contexts[0]
+            else:
+                context = browser.new_context()
+                
+            # 注入基本的防检测脚本（接管模式下其实指纹已经非常真实）
+            context.add_init_script("""
+                # 1. 抹除 webdriver 标志
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                
+                # 2. 模拟插件列表（自动化浏览器通常插件列表为空）
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                
+                # 3. 伪装 Chrome 特征
+                window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+                
+                # 4. 伪装语言和硬件并发
+                Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh'] });
+                Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+            """)
             
-            # 检查是否为空结果页面
-            if 'jMessageError' in html_content or '没有找到相关商品' in html_content:
-                print(f"ℹ️  浏览器 {browser_index} 关键词 '{keyword}' 没有找到相关商品，返回空结果")
-                # 保存搜索页面HTML
-                self.save_search_page(keyword, min_price, max_price, html_content, timestamp)
-                return [], search_url, original_url
-            
-            # 保存搜索页面HTML
-            self.save_search_page(keyword, min_price, max_price, html_content, timestamp)
-            
-            # 提取商品链接
-            product_links = self.extract_main_product_links(html_content)
-            
-            print(f"✅ 浏览器 {browser_index} 关键词 '{keyword}' 找到 {len(product_links)} 个商品")
-            return product_links, search_url, original_url
-            
+            return context
         except Exception as e:
-            # 抛出异常以便上层重试机制捕获
-            raise Exception(f"搜索执行异常: {e}")
-    
-    # ==================== 修改search_jd_products方法 ====================
-    
-    def search_jd_products(self, keyword_config, timestamp, browser_index=1):
-        """搜索京东商品并提取SKU（使用curl_cffi替代Playwright）"""
-        # 检查是否正在关闭
-        if not self.is_running:
-            return []
-            
-        keyword = keyword_config['keyword']
-        min_price = keyword_config['min_price']
-        max_price = keyword_config['max_price']
-        brand = keyword_config['brand']
+            print(f"❌ 连接失败！请确保 Chrome 已通过 --remote-debugging-port=9222 启动。")
+            raise e
 
-        if brand == 'huawei':
-            brand_str = '%25E5%258D%258E%25E4%25B8%25BA%25EF%25BC%2588HUAWEI%25EF%25BC%2589'
-        elif brand == 'honor':
-            brand_str = '%25E8%258D%25A3%25E8%2580%2580%25EF%25BC%2588HONOR%25EF%25BC%2589'
-        elif brand == 'xiaomi':
-            brand_str = '%25E5%25B0%258F%25E7%25B1%25B3%25EF%25BC%2588MI%25EF%25BC%2589'
-        elif brand == 'oppo':
-            brand_str = 'OPPO'
-        elif brand == 'oneplus':
-            brand_str = '%25E4%25B8%2580%25E5%258A%25A0'
-        elif brand == 'realme':
-            brand_str = '%25E7%259C%259F%25E6%2588%2591%25EF%25BC%2588realme%25EF%25BC%2589'
-        elif brand == 'vivo' or brand == 'iqoo':
-            brand_str = 'vivo'
-        # 构建搜索URL
-        if min_price > 0 or max_price > 0:
-            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={quote(quote(keyword, encoding='utf-8'), encoding='utf-8')}&ext_attr=5522:90100&exp_brand={brand_str}"
-            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
-        else:
-            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-0-0-0-1-1-60.html?keyword={quote(keyword, encoding='utf-8')}"
-            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-0-0-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
-        
-        # print(f"🌐 浏览器 {browser_index} 搜索关键词: {keyword} 搜索URL: {search_url}")
-        
-        try:
-            # ==================== 使用curl_cffi替代Playwright ====================
-            # 直接调用同步版本的搜索方法
-            return self.search_jd_products_sync(keyword_config, timestamp, browser_index)
-            
-        except Exception as e:
-            # 抛出异常以便上层重试机制捕获
-            raise Exception(f"搜索执行异常: {e}")
-    
-    # ==================== 其他方法保持不变 ====================
-    
     def remove_hot_sale_products(self, html_content):
         """从HTML中移除热销商品部分"""
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -1257,6 +742,106 @@ class JDSKUMonitor:
         
         return product_links
     
+    def search_jd_products(self, keyword_config, timestamp, browser_index=1):
+        """搜索京东商品并提取SKU"""
+        # 检查是否正在关闭
+        if not self.is_running:
+            return []
+            
+        keyword = keyword_config['keyword']
+        min_price = keyword_config['min_price']
+        max_price = keyword_config['max_price']
+        brand = keyword_config['brand']
+
+        if brand == 'huawei':
+            brand_str = '%25E5%258D%258E%25E4%25B8%25BA%25EF%25BC%2588HUAWEI%25EF%25BC%2589'
+        elif brand == 'honor':
+            brand_str = '%25E8%258D%25A3%25E8%2580%2580%25EF%25BC%2588HONOR%25EF%25BC%2589'
+        elif brand == 'xiaomi':
+            brand_str = '%25E5%25B0%258F%25E7%25B1%25B3%25EF%25BC%2588MI%25EF%25BC%2589'
+        elif brand == 'oppo':
+            brand_str = 'OPPO'
+        elif brand == 'oneplus':
+            brand_str = '%25E4%25B8%2580%25E5%258A%25A0'
+        elif brand == 'realme':
+            brand_str = '%25E7%259C%259F%25E6%2588%2591%25EF%25BC%2588realme%25EF%25BC%2589'
+        elif brand == 'vivo' or brand == 'iqoo':
+            brand_str = 'vivo'
+        # 构建搜索URL
+        if min_price > 0 or max_price > 0:
+            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={quote(quote(keyword, encoding='utf-8'), encoding='utf-8')}&ext_attr=5522:90100&exp_brand={brand_str}"
+            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
+            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
+        else:
+            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-0-0-0-1-1-60.html?keyword={quote(keyword, encoding='utf-8')}"
+            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
+            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-0-0-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
+        
+        # print(f"🌐 浏览器 {browser_index} 搜索关键词: {keyword} 搜索URL: {search_url}")
+        
+        with sync_playwright() as p:
+            # 使用浏览器上下文
+            context = self.create_browser_context(p, browser_index)
+            page = context.new_page()
+            
+            try:
+                # print(f"🔍 浏览器 {browser_index} 搜索关键词: {keyword} (价格: {min_price}-{max_price}元)\n")
+                # if min_price > 0 or max_price > 0:
+                #     print(f" (价格: {min_price}-{max_price}元)")
+                # else:
+                #     print()
+                    
+                page.goto(search_url, timeout=60000, wait_until='networkidle')
+                
+                # 等待商品列表加载
+                try:
+                    page.wait_for_selector('.jSearchList-792077 li.jSubObject', timeout=30000)
+                    has_empty_message = False
+                    try:
+                        # 设置较短的超时时间快速检查
+                        empty_selector = '.jMessageError'
+                        has_empty_message = page.locator(empty_selector).count() > 0
+                    except:
+                        pass
+                    
+                    # 如果检测到空结果提示，直接返回空列表
+                    if has_empty_message:
+                        # print(f"ℹ️  浏览器 {browser_index} 关键词 '{keyword}' 没有找到相关商品，返回空结果")
+                        # 保存搜索页面HTML
+                        html_content = page.content()
+                        self.save_search_page(keyword, min_price, max_price, html_content, timestamp)
+                        return [], search_url, original_url
+                except:
+                    # page.wait_for_selector('.gl-item, .jSubObject', timeout=15000)
+                    pass
+                                    
+                # 滚动页面
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                time.sleep(2)
+                
+                # 获取页面内容
+                html_content = page.content()
+                
+                # 保存搜索页面HTML
+                self.save_search_page(keyword, min_price, max_price, html_content, timestamp)
+                
+                # 提取商品链接
+                product_links = self.extract_main_product_links(html_content)
+                
+                # print(f"✅ 浏览器 {browser_index} 关键词 '{keyword}' 找到 {len(product_links)} 个商品")
+                return product_links, search_url, original_url
+                
+            except Exception as e:
+                # 抛出异常以便上层重试机制捕获
+                raise Exception(f"搜索执行异常: {e}")
+            finally:
+                try:
+                    if 'page' in locals():
+                        page.close()
+                        print(f"🧹 [Debug] 已关闭关键词 '{keyword}' 的标签页")
+                except:
+                    pass
+    
     def process_single_keyword(self, keyword_config, timestamp, browser_index=1):
         """处理单个关键词并立即发送通知"""
         # 检查是否正在关闭
@@ -1290,11 +875,11 @@ class JDSKUMonitor:
         # print(f"📦 浏览器 {browser_index} 搜索关键词: '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 搜索URL: {search_url}")
         
         # 获取该关键词的历史SKU (从加锁的缓存中获取)
-        # historical_skus = self.get_keyword_historical_skus(keyword)
+        historical_skus = self.get_keyword_historical_skus(keyword)
         
         # 计算新SKU（相对于该关键词的历史数据）
-        # new_skus_for_keyword = all_skus - historical_skus
-        new_skus_for_keyword = all_skus
+        new_skus_for_keyword = all_skus - historical_skus
+        # new_skus_for_keyword = all_skus
         new_products_for_keyword = [p for p in product_links if p['sku_id'] in new_skus_for_keyword]
         
         # 保存当前搜索的SKU (此方法内部会更新加锁的内存缓存并写文件)
@@ -1390,10 +975,11 @@ class JDSKUMonitor:
         current_hour = now.hour
         
         # 早上9点-11点或晚上6点-8点，使用15分钟间隔
-        if (8 <= current_hour <= 24):
-            return random.randint(30, 60)
-        else:
-            return 7 * 60
+        # if (9 <= current_hour <= 15) or (17 <= current_hour <= 20) or (22 <= current_hour <= 24) or (0 <= current_hour <= 2):
+        #     return 1
+        # else:
+        #     return 5
+        return 1
     
     def monitor_keywords_concurrent(self):
         """并发监控所有关键词 - 包含关键词池失败重试机制"""
@@ -1487,9 +1073,6 @@ class JDSKUMonitor:
         
         print(f"\n✅ 本轮并发监控任务全部完成，共发现 {len(total_new_skus)} 个新SKU")
         self.log_detailed_monitoring_result(total_new_skus, process_timestamp, keyword_new_skus_details)
-        
-        # 保存推送历史
-        self.save_all_push_history()
     
     def update_keyword_stats(self, keyword_config, new_skus_count):
         """更新关键词统计"""
@@ -1586,28 +1169,11 @@ class JDSKUMonitor:
         
         print(f"\n🔄 定时任务已启动，下次执行在 {interval_minutes} 分钟后...")
         
-        # 运行调度器 - 修复：在循环中检查 is_running 状态
+        # 运行调度器
         while self.is_running:
             try:
-                # 使用 schedule.idle_seconds() 而不是阻塞的 run_pending()
-                seconds_to_next = schedule.idle_seconds()
-                
-                if seconds_to_next is None:
-                    # 没有任务时等待1秒
-                    seconds_to_next = 1
-                elif seconds_to_next > 0:
-                    # 有任务时，分批检查退出信号
-                    wait_increment = 0.5  # 每0.5秒检查一次
-                    while seconds_to_next > 0 and self.is_running:
-                        sleep_time = min(wait_increment, seconds_to_next)
-                        time.sleep(sleep_time)
-                        seconds_to_next -= sleep_time
-                
-                # 如果程序还在运行，执行待处理的任务
-                if self.is_running:
-                    schedule.run_pending()
-                else:
-                    break
+                schedule.run_pending()
+                time.sleep(1)  # 每秒检查一次，提高响应速度
                 
                 # 检查是否需要调整执行间隔
                 if datetime.now().minute == 0:
@@ -1626,10 +1192,7 @@ class JDSKUMonitor:
                     self.signal_handler(signal.SIGINT, None)
             except Exception as e:
                 print(f"❌ 调度器错误: {e}")
-                if self.is_running:
-                    time.sleep(1)
-        
-        print("🛑 监控程序已停止")
+                time.sleep(1)
 
 
 def main():
