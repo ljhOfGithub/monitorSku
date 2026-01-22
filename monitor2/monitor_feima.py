@@ -15,6 +15,8 @@ import threading
 import signal
 import sys
 from urllib.parse import quote
+import subprocess
+
 PROXY_CONFIG = {
     "server": "q865.kdltps.com:15818",
     "username": "t16612090902574",
@@ -24,6 +26,7 @@ PROXY_CONFIG = {
 chrome_dirs = []
 root_dir = "C:\\data"
 user_dir = "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2"
+
 class JDSKUMonitor:
     def __init__(self, keywords_config_file, webhook_urls=None, alert_webhook_url=None):
         """
@@ -75,8 +78,8 @@ class JDSKUMonitor:
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         
-        # 创建线程池执行器 - 使用默认并发数
-        self.executor = ThreadPoolExecutor(max_workers=5)
+        # 修改：将 max_workers 设置为 1，确保不会同时访问多个 URL
+        self.executor = ThreadPoolExecutor(max_workers=1)
     
     def load_keywords_config(self):
         """从JSON文件加载关键词配置"""
@@ -971,15 +974,40 @@ class JDSKUMonitor:
     
     def get_interval_minutes(self):
         """根据当前时间获取执行间隔"""
-        now = datetime.now()
-        current_hour = now.hour
+        # 修改：固定为 5 分钟
+        return 5
+    
+    def run_filter_by_history_script(self):
+        script_path = r"C:\Users\yuhua\Desktop\rpa\proxy\filter_by_history_with_brand.py"
         
-        # 早上9点-11点或晚上6点-8点，使用15分钟间隔
-        # if (9 <= current_hour <= 15) or (17 <= current_hour <= 20) or (22 <= current_hour <= 24) or (0 <= current_hour <= 2):
-        #     return 1
-        # else:
-        #     return 5
-        return 1
+        if not os.path.exists(script_path):
+            print(f"❌ 找不到脚本文件: {script_path}")
+            return False
+        
+        print(f"🚀 开始运行过滤脚本: {script_path}")
+        try:
+            # 使用subprocess运行Python脚本
+            result = subprocess.run(
+                [sys.executable, script_path],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+            )
+            
+            if result.returncode == 0:
+                print("✅ 过滤脚本执行成功")
+                return True
+            else:
+                print(f"❌ 过滤脚本执行失败，返回码: {result.returncode}")
+                print(f"错误输出: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print("❌ 过滤脚本执行超时")
+            return False
+        except Exception as e:
+            print(f"❌ 运行过滤脚本时出错: {e}")
+            return False
     
     def monitor_keywords_concurrent(self):
         """并发监控所有关键词 - 包含关键词池失败重试机制"""
@@ -1024,6 +1052,8 @@ class JDSKUMonitor:
                 task_args = (config, process_timestamp, browser_idx)
                 future = self.executor.submit(self.process_keyword_with_browser, task_args)
                 current_futures[future] = (config, browser_idx)
+                # 修改：在此处增加延迟，确保提交到线程池的任务在执行时有时间间隔，且因为 max_workers=1，会严格排队
+                time.sleep(60 * 5) 
             
             # 本轮提交完毕，清空池子，等待失败者重新加入
             pending_tasks = []
@@ -1067,6 +1097,14 @@ class JDSKUMonitor:
             'monitor_start_time': monitor_start_time,
             'process_timestamp': process_timestamp
         }
+        
+        # 如果有新SKU，则调用C:\Users\yuhua\Desktop\rpa\proxy\filter_by_history_with_brand.py等待更新完毕再进行下一轮
+        if total_new_skus and self.is_running:
+            print(f"\n🎯 发现 {len(total_new_skus)} 个新SKU，开始运行过滤脚本...")
+            if self.run_filter_by_history_script():
+                print("✅ 过滤脚本执行完毕，继续进行下一轮监控")
+            else:
+                print("⚠️  过滤脚本执行失败，但继续下一轮监控")
         
         if self.is_running:
             self.send_monitor_summary_notification(self.current_monitor_data)
