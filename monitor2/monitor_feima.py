@@ -902,6 +902,10 @@ class JDSKUMonitor:
             
             # 更新监控统计
             self.update_keyword_stats(keyword_config, len(new_skus_for_keyword))
+
+            # 只要此次有新sku，则立即调用过滤脚本更新历史记录
+            print(f"🚀 [即时触发] 关键词 '{keyword}' 发现新SKU，正在运行过滤脚本...")
+            self.run_filter_by_history_script()
         else:
             print(f"ℹ️  浏览器 {browser_index} 搜索关键词 '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 没有新SKU 搜索URL: {search_url}")
         
@@ -1097,14 +1101,6 @@ class JDSKUMonitor:
             'monitor_start_time': monitor_start_time,
             'process_timestamp': process_timestamp
         }
-        
-        # 如果有新SKU，则调用C:\Users\yuhua\Desktop\rpa\proxy\filter_by_history_with_brand.py等待更新完毕再进行下一轮
-        if total_new_skus and self.is_running:
-            print(f"\n🎯 发现 {len(total_new_skus)} 个新SKU，开始运行过滤脚本...")
-            if self.run_filter_by_history_script():
-                print("✅ 过滤脚本执行完毕，继续进行下一轮监控")
-            else:
-                print("⚠️  过滤脚本执行失败，但继续下一轮监控")
         
         if self.is_running:
             self.send_monitor_summary_notification(self.current_monitor_data)
