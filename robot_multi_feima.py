@@ -600,7 +600,8 @@ class DeviceQuery:
         
         # 如果没有直接匹配到，尝试处理换行情况
         # 查找"商品唯一码："关键词
-        product_code_keyword_pattern = r'商品唯一码[：:\s]*(\d{1,20})'
+        # 修改：增加对 "唯一码：" 关键词的匹配支持
+        product_code_keyword_pattern = r'(?:商品唯一码|唯一码)[：:\s]*(\d{1,20})'
         keyword_matches = re.findall(product_code_keyword_pattern, text)
         
         if keyword_matches:
@@ -609,7 +610,7 @@ class DeviceQuery:
             
             # 查找可能被分割到下一行的剩余部分
             # 在基础部分后面查找可能的连续数字
-            remaining_pattern = rf'{re.escape(base_code)}\s*(\d{{1,5}})'
+            remaining_pattern = rf'{re.escape(base_code)}\s*(\d{{1,20}})'
             remaining_matches = re.findall(remaining_pattern, text.replace('\n', ' '))
             
             if remaining_matches:
@@ -931,7 +932,7 @@ def start_robot_process(brand, config):
                                 if not is_first_query:
                                     feishu.reply_message(
                                         message_id=message_id,
-                                        message=f'[{brand}] ❌ 该设备已查询过（第{query_count-1}次），禁止重复查询！',
+                                        message=f'[{brand}] ❌ 该设备 {product_code} 已查询过（第{query_count-1}次），禁止重复查询！',
                                         chat_type=chat_type
                                     )
                                     logger.info(f"[{brand}] 阻止重复查询，IMEI: {product_code}")
