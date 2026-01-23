@@ -6,6 +6,7 @@ import base64
 import urllib.parse
 import re
 import multiprocessing
+import random
 import logging
 import lark_oapi as lark
 from lark_oapi import EventDispatcherHandler, ws, JSON, im, LogLevel
@@ -16,7 +17,14 @@ NOTIFICATION_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/2d527f0
 
 # 新增：出错时转发图片的Webhook数组
 ERROR_NOTIFICATION_WEBHOOKS = [
-    "https://open.feishu.cn/open-apis/bot/v2/hook/93722879-e59e-4210-8ec2-014d1d8238be" # 可以在此处添加更多Webhook
+    "https://open.feishu.cn/open-apis/bot/v2/hook/93722879-e59e-4210-8ec2-014d1d8238be",
+    "https://open.feishu.cn/open-apis/bot/v2/hook/d87f2f67-e9c9-4981-969b-50d63d0473b9",
+]
+
+# 新增：允许重复查询且不发送错误通知的群聊ID数组
+# 你可以从消息的 chat_id 字段获取并填入此处
+ALLOW_REPEAT_CHATS = [
+    "oc_7145fcf5927728859f48fadbb6dfc188", 
 ]
 
 # 机器人配置
@@ -66,8 +74,8 @@ class DeviceQueryConfig:
 class BaiduOCRConfig:
     '''百度OCR配置信息'''
     # 主账号
-    # API_KEY = "B2WT4jGOnJ7V0kq7nRKtJVw4"
-    # SECRET_KEY = "SjRXsgpiaUfL1onSb4Z3w6RkqUeatlfs"
+    API_KEY = "B2WT4jGOnJ7V0kq7nRKtJVw4"
+    SECRET_KEY = "SjRXsgpiaUfL1onSb4Z3w6RkqUeatlfs"
     # API_KEY_BACKUP1 = "B2WT4jGOnJ7V0kq7nRKtJVw4"
     # SECRET_KEY_BACKUP1 = "SjRXsgpiaUfL1onSb4Z3w6RkqUeatlfs"
     
@@ -84,11 +92,11 @@ class BaiduOCRConfig:
     API_KEY_BACKUP2 = "VscTtXCPUj4zC8i80lox10Tq"
     SECRET_KEY_BACKUP2 = "lPFWJH4Sgy0IE8LXTMQEUlTWxmWUT6dG"
 
-    API_KEY = "ypa6lyhMoIxj5rgX6RUQ1ABW"
-    SECRET_KEY = "zZxx9BfBFIWkG28t1cl2GNMEl2ikAO0o"
+    # API_KEY = "ypa6lyhMoIxj5rgX6RUQ1ABW"
+    # SECRET_KEY = "zZxx9BfBFIWkG28t1cl2GNMEl2ikAO0o"
     
-    # OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic"
-    OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
+    OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic"
+    # OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
 
 class WebhookNotifier:
     '''Webhook通知类'''
@@ -623,34 +631,34 @@ class DeviceQuery:
                     logging.info(f"使用基础部分作为商品唯一码: {base_code}")
                     return base_code
         
-        # 最后尝试：查找所有数字序列，合并相邻的短数字序列
-        all_digits = re.findall(r'\d+', text)
-        if all_digits:
-            # 尝试合并相邻的数字序列
-            merged_digits = []
-            i = 0
-            while i < len(all_digits):
-                current = all_digits[i]
-                # 如果当前数字序列长度在15-20之间，直接使用
-                if 15 <= len(current) <= 20:
-                    logging.info(f"找到合适长度的数字序列: {current}")
-                    return current
+        # # 最后尝试：查找所有数字序列，合并相邻的短数字序列
+        # all_digits = re.findall(r'\d+', text)
+        # if all_digits:
+        #     # 尝试合并相邻的数字序列
+        #     merged_digits = []
+        #     i = 0
+        #     while i < len(all_digits):
+        #         current = all_digits[i]
+        #         # 如果当前数字序列长度在15-20之间，直接使用
+        #         if 15 <= len(current) <= 20:
+        #             logging.info(f"找到合适长度的数字序列: {current}")
+        #             return current
                 
-                # 尝试合并后续的数字序列
-                j = i + 1
-                while j < len(all_digits) and len(current) < 20:
-                    next_digit = all_digits[j]
-                    if len(current) + len(next_digit) <= 20:
-                        current += next_digit
-                        j += 1
-                    else:
-                        break
+        #         # 尝试合并后续的数字序列
+        #         j = i + 1
+        #         while j < len(all_digits) and len(current) < 20:
+        #             next_digit = all_digits[j]
+        #             if len(current) + len(next_digit) <= 20:
+        #                 current += next_digit
+        #                 j += 1
+        #             else:
+        #                 break
                 
-                if 15 <= len(current) <= 20:
-                    logging.info(f"合并后得到商品唯一码: {current}")
-                    return current
+        #         if 15 <= len(current) <= 20:
+        #             logging.info(f"合并后得到商品唯一码: {current}")
+        #             return current
                 
-                i = j
+        #         i = j
             
         logging.warning("未找到有效的商品唯一码")
         return None
@@ -684,6 +692,8 @@ class DeviceQuery:
             }
             
             logging.info(f"开始查询设备信息，品牌: {brand}, 商品码: {product_code}")
+            delay = random.uniform(0.05, 0.1)
+            time.sleep(delay)
             response = requests.get(DeviceQueryConfig.QUERY_URL, params=params)
             logging.info(f"设备查询响应状态码: {response.status_code}")
             
@@ -874,9 +884,13 @@ def start_robot_process(brand, config):
         try:
             data_dict = json.loads(JSON.marshal(data)) 
             message_id = data_dict["event"]["message"]["message_id"]
+            chat_id = data_dict["event"]["message"]["chat_id"] # 获取聊天ID
             chat_type = data_dict["event"]["message"]["chat_type"]
             
-            logger.info(f"收到新消息: {message_id}, 类型: {data_dict['event']['message']['message_type']}")
+            # 判断当前群组是否在允许重复查询的白名单中
+            is_allow_repeat = chat_id in ALLOW_REPEAT_CHATS
+            
+            logger.info(f"收到新消息: {message_id}, 来源: {chat_id}, 是否免限制: {is_allow_repeat}")
             
             if not should_process_message(data_dict):
                 return
@@ -928,8 +942,8 @@ def start_robot_process(brand, config):
                                 is_first_query = ImeiQueryManager.is_first_query(brand, product_code)
                                 query_count = ImeiQueryManager.get_query_count(brand, product_code) + 1
                                 
-                                # 如果不是第一次查询，阻止查询并返回提示
-                                if not is_first_query:
+                                # 如果不是第一次查询且不在白名单群组，阻止查询并返回提示
+                                if not is_first_query and not is_allow_repeat:
                                     feishu.reply_message(
                                         message_id=message_id,
                                         message=f'[{brand}] ❌ 该设备 {product_code} 已查询过（第{query_count-1}次），禁止重复查询！',
@@ -946,13 +960,18 @@ def start_robot_process(brand, config):
                                 # --- 修改部分：如果查询失败（success为False），转发图片和原因到新的Webhook数组 ---
                                 if not query_result.get('success'):
                                     error_msg = query_result.get('error_message', '查询接口返回失败')
-                                    forward_msg = f"⚠️ 设备查询失败通知\n品牌: {brand.upper()}\n商品码: {product_code}\n原因: {error_msg}"
-                                    # 发送文本原因
-                                    WebhookNotifier.send_notification(forward_msg, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
-                                    # 上传并发送图片
-                                    uploaded_key = feishu.upload_image(downloaded_path)
-                                    if uploaded_key:
-                                        WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                    # 简便完善通知：增加飞书内跳转链接，免去额外查消息麻烦
+                                    jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
+                                    forward_msg = f"⚠️ 设备查询失败通知\n品牌: {brand.upper()}\n商品码: {product_code}\n原因: {error_msg}\n🔗 [点击跳转到原始消息]({jump_url})"
+                                    
+                                    # 如果不在免打扰白名单中，发送异常通知
+                                    if not is_allow_repeat:
+                                        # 发送文本原因
+                                        WebhookNotifier.send_notification(forward_msg, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                        # 上传并发送图片
+                                        uploaded_key = feishu.upload_image(downloaded_path)
+                                        if uploaded_key:
+                                            WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                                 # ---------------------------------------------------------------------------
 
                                 json_filepath, final_image_path = save_query_result(brand, product_code, query_result, downloaded_path, query_count)
@@ -1006,6 +1025,9 @@ def start_robot_process(brand, config):
                                     
                                     notification_parts.append("")
                                     notification_parts.append("✅ 此设备符合条件，请及时处理！")
+                                    # 增加跳转链接
+                                    jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
+                                    notification_parts.append(f"🔗 [点击跳转到群聊聊天记录]({jump_url})")
                                     
                                     notification_message = "\n".join(notification_parts)
                                     
@@ -1064,11 +1086,13 @@ def start_robot_process(brand, config):
                                     message=error_text,
                                     chat_type=chat_type
                                 )
-                                # --- 修改部分：识别失败也转发到错误Webhook ---
-                                WebhookNotifier.send_notification(f"⚠️ 识别失败通知\n品牌: {brand.upper()}\n原因: 未提取到唯一码", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
-                                uploaded_key = feishu.upload_image(downloaded_path)
-                                if uploaded_key:
-                                    WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                # --- 修改部分：识别失败转发，白名单内不转发 ---
+                                if not is_allow_repeat:
+                                    jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
+                                    WebhookNotifier.send_notification(f"⚠️ 识别失败通知\n品牌: {brand.upper()}\n原因: 未提取到唯一码\n🔗 [跳转消息]({jump_url})", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                    uploaded_key = feishu.upload_image(downloaded_path)
+                                    if uploaded_key:
+                                        WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                                 # -------------------------------------------
                                 # 删除临时文件
                                 if os.path.exists(downloaded_path):
@@ -1081,11 +1105,13 @@ def start_robot_process(brand, config):
                                 message=error_text,
                                 chat_type=chat_type
                             )
-                            # --- 修改部分：OCR失败也转发到错误Webhook ---
-                            WebhookNotifier.send_notification(f"⚠️ OCR失败通知\n品牌: {brand.upper()}\n原因: 百度OCR未返回文字", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
-                            uploaded_key = feishu.upload_image(downloaded_path)
-                            if uploaded_key:
-                                WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                            # --- 修改部分：OCR失败转发，白名单内不转发 ---
+                            if not is_allow_repeat:
+                                jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
+                                WebhookNotifier.send_notification(f"⚠️ OCR失败通知\n品牌: {brand.upper()}\n原因: 百度OCR未返回文字\n🔗 [跳转消息]({jump_url})", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                uploaded_key = feishu.upload_image(downloaded_path)
+                                if uploaded_key:
+                                    WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                             # -------------------------------------------
                             # 删除临时文件
                             if os.path.exists(downloaded_path):
@@ -1097,13 +1123,14 @@ def start_robot_process(brand, config):
                             message=f'[{brand}] ❌ 下载图片失败，请稍后重试。',
                             chat_type=chat_type
                         )
-                        WebhookNotifier.send_notification(f"❌ 下载图片失败，请稍后重试。", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                        if not is_allow_repeat:
+                            WebhookNotifier.send_notification(f"❌ 下载图片失败，请稍后重试。", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                 
                 logger.info(f"消息处理完成: {message_id}")
                     
         except Exception as e:
             logger.error(f"处理消息时出错: {e}")
-            # 发送错误通知到Webhook
+            # 发送错误通知到Webhook（系统级错误保持原有上报，或根据需要加上跳转）
             error_message = f"品牌: {brand}\n错误类型: {type(e).__name__}\n错误详情: {str(e)}"
             WebhookNotifier.send_error_notification(error_message, downloaded_path, brand)
             
