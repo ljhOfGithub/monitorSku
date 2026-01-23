@@ -14,6 +14,11 @@ from lark_oapi.api.im.v1 import GetMessageResourceRequest, GetMessageResourceRes
 # 全局Webhook配置
 NOTIFICATION_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/2d527f0c-f072-4c32-aaff-f5daca6e2e3e"
 
+# 新增：出错时转发图片的Webhook数组
+ERROR_NOTIFICATION_WEBHOOKS = [
+    "https://open.feishu.cn/open-apis/bot/v2/hook/93722879-e59e-4210-8ec2-014d1d8238be" # 可以在此处添加更多Webhook
+]
+
 # 机器人配置
 ROBOT_CONFIGS = {
     'huawei': {
@@ -89,9 +94,11 @@ class WebhookNotifier:
     '''Webhook通知类'''
     
     @staticmethod
-    def send_notification(message, image_key=None):
+    def send_notification(message, image_key=None, custom_webhooks=None):
         '''发送通知到Webhook群聊'''
         try:
+            urls = custom_webhooks if custom_webhooks else [NOTIFICATION_WEBHOOK_URL]
+            
             if image_key:
                 # 发送图片消息
                 data = {
@@ -113,8 +120,10 @@ class WebhookNotifier:
                 'Content-Type': 'application/json; charset=utf-8'
             }
             
-            response = requests.post(NOTIFICATION_WEBHOOK_URL, headers=headers, json=data)
-            response.raise_for_status()
+            for url in urls:
+                response = requests.post(url, headers=headers, json=data)
+                response.raise_for_status()
+            
             logging.info("Webhook通知发送成功")
             return True
         except Exception as e:
@@ -933,6 +942,18 @@ def start_robot_process(brand, config):
                                 
                                 query_result = DeviceQuery.query_device_info(product_code, brand)
                                 
+                                # --- 修改部分：如果查询失败（success为False），转发图片和原因到新的Webhook数组 ---
+                                if not query_result.get('success'):
+                                    error_msg = query_result.get('error_message', '查询接口返回失败')
+                                    forward_msg = f"⚠️ 设备查询失败通知\n品牌: {brand.upper()}\n商品码: {product_code}\n原因: {error_msg}"
+                                    # 发送文本原因
+                                    WebhookNotifier.send_notification(forward_msg, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                    # 上传并发送图片
+                                    uploaded_key = feishu.upload_image(downloaded_path)
+                                    if uploaded_key:
+                                        WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                # ---------------------------------------------------------------------------
+
                                 json_filepath, final_image_path = save_query_result(brand, product_code, query_result, downloaded_path, query_count)
                                 
                                 # 检查是否符合条件
@@ -1036,21 +1057,35 @@ def start_robot_process(brand, config):
                                 )
                                 
                             else:
+                                error_text = f'[{brand}] ❌ 未识别到有效的商品唯一码（15-20位数字）'
                                 feishu.reply_message(
                                     message_id=message_id,
-                                    message=f'[{brand}] ❌ 未识别到有效的商品唯一码（15-20位数字）',
+                                    message=error_text,
                                     chat_type=chat_type
                                 )
+                                # --- 修改部分：识别失败也转发到错误Webhook ---
+                                WebhookNotifier.send_notification(f"⚠️ 识别失败通知\n品牌: {brand.upper()}\n原因: 未提取到唯一码", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                uploaded_key = feishu.upload_image(downloaded_path)
+                                if uploaded_key:
+                                    WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                # -------------------------------------------
                                 # 删除临时文件
                                 if os.path.exists(downloaded_path):
                                     os.remove(downloaded_path)
                             
                         else:
+                            error_text = f'[{brand}] ❌ 文字识别失败，请确保图片清晰且包含商品条码。'
                             feishu.reply_message(
                                 message_id=message_id,
-                                message=f'[{brand}] ❌ 文字识别失败，请确保图片清晰且包含商品条码。',
+                                message=error_text,
                                 chat_type=chat_type
                             )
+                            # --- 修改部分：OCR失败也转发到错误Webhook ---
+                            WebhookNotifier.send_notification(f"⚠️ OCR失败通知\n品牌: {brand.upper()}\n原因: 百度OCR未返回文字", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                            uploaded_key = feishu.upload_image(downloaded_path)
+                            if uploaded_key:
+                                WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                            # -------------------------------------------
                             # 删除临时文件
                             if os.path.exists(downloaded_path):
                                 os.remove(downloaded_path)
@@ -1061,6 +1096,7 @@ def start_robot_process(brand, config):
                             message=f'[{brand}] ❌ 下载图片失败，请稍后重试。',
                             chat_type=chat_type
                         )
+                        WebhookNotifier.send_notification(f"❌ 下载图片失败，请稍后重试。", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                 
                 logger.info(f"消息处理完成: {message_id}")
                     
