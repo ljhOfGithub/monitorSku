@@ -16,6 +16,7 @@ import signal
 import sys
 from urllib.parse import quote
 import subprocess
+import random
 
 PROXY_CONFIG = {
     "server": "q865.kdltps.com:15818",
@@ -727,7 +728,7 @@ class JDSKUMonitor:
                                 title = desc_div.find('a').get_text(strip=True)
                             
                             title_lower = title.lower()
-                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由']
+                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由', '手表', '鞋', '耳机', '音响', '音箱', '充电器', '保护套', '保护壳', '手机壳', '充电线', '数据线', 'MateBook']
                             is_hot_title = any(keyword in title_lower for keyword in hot_keywords)
                             if(is_hot_title):
                                 continue
@@ -977,9 +978,18 @@ class JDSKUMonitor:
         self.has_sent_summary = True
     
     def get_interval_minutes(self):
-        """根据当前时间获取执行间隔"""
-        # 修改：固定为 5 分钟
-        return 5
+        """
+        根据当前时间获取执行间隔（秒）
+        """
+        now = datetime.now()
+        current_hour = now.hour
+        
+        # 早上9点-11点或晚上6点-8点，使用较短间隔（5-10分钟）
+        if (7 <= current_hour <= 24):
+            return random.randint(5, 10)  # 5-10分钟转换为秒
+        else:
+            # 其他时间使用较长间隔（8小时）
+            return 2 * 60  # 8小时转换为秒
     
     def run_filter_by_history_script(self):
         script_path = r"C:\Users\yuhua\Desktop\rpa\proxy\filter_by_history_with_brand.py"
@@ -995,7 +1005,7 @@ class JDSKUMonitor:
                 [sys.executable, script_path],
                 capture_output=True,
                 text=True,
-                encoding='utf-8',
+                errors='replace'  # 增加此参数可以防止个别特殊字符导致崩溃
             )
             
             if result.returncode == 0:
@@ -1057,7 +1067,7 @@ class JDSKUMonitor:
                 future = self.executor.submit(self.process_keyword_with_browser, task_args)
                 current_futures[future] = (config, browser_idx)
                 # 修改：在此处增加延迟，确保提交到线程池的任务在执行时有时间间隔，且因为 max_workers=1，会严格排队
-                time.sleep(60 * 5) 
+                time.sleep(60 * random.randint(5, 7)) 
             
             # 本轮提交完毕，清空池子，等待失败者重新加入
             pending_tasks = []
