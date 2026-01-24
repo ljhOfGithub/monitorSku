@@ -102,7 +102,7 @@ class WebhookNotifier:
     '''Webhook通知类'''
     
     @staticmethod
-    def send_notification(message, image_key=None, custom_webhooks=None):
+    def send_notification(message, image_key=None, custom_webhooks=None, link_data=None):
         '''发送通知到Webhook群聊'''
         try:
             urls = custom_webhooks if custom_webhooks else [NOTIFICATION_WEBHOOK_URL]
@@ -115,12 +115,32 @@ class WebhookNotifier:
                         "image_key": image_key
                     }
                 }
+            elif link_data:
+                # 如果包含链接，使用富文本(post)格式
+                # message 此时预期为列表，包含之前的行
+                post_content = []
+                for line in message:
+                    post_content.append([{"tag": "text", "text": f"{line}\n"}])
+                
+                # 添加链接行
+                post_content.append([{"tag": "text", "text": "🔗 "}, link_data])
+                
+                data = {
+                    "msg_type": "post",
+                    "content": {
+                        "post": {
+                            "zh_cn": {
+                                "content": post_content
+                            }
+                        }
+                    }
+                }
             else:
-                # 发送文本消息
+                # 发送普通文本消息
                 data = {
                     "msg_type": "text",
                     "content": {
-                        "text": message
+                        "text": message if isinstance(message, str) else "\n".join(message)
                     }
                 }
             
@@ -314,6 +334,27 @@ class FeishuApi:
         if not self.token or time.time() >= self.token_expire_time:
             self.refresh_token()
         return self.token
+
+    def get_chat_info(self, chat_id):
+        '''获取群信息'''
+        try:
+            token = self.get_token()
+            if not token:
+                return "未知群聊"
+            url = f"https://open.feishu.cn/open-apis/im/v1/chats/{chat_id}"
+            headers = {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json; charset=utf-8'
+            }
+            response = self.session.get(url, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            if result.get('code') == 0:
+                return result.get('data', {}).get('name', "未知群聊")
+            return "未知群聊"
+        except Exception as e:
+            logging.error(f"[{self.brand}] 获取群信息失败: {e}")
+            return "未知群聊"
 
     def reply_message(self, message_id, message, chat_type="p2p"):
         '''回复飞书消息'''
@@ -692,7 +733,7 @@ class DeviceQuery:
             }
             
             logging.info(f"开始查询设备信息，品牌: {brand}, 商品码: {product_code}")
-            delay = random.uniform(0.05, 0.1)
+            delay = random.uniform(0.1, 0.2)
             time.sleep(delay)
             response = requests.get(DeviceQueryConfig.QUERY_URL, params=params)
             logging.info(f"设备查询响应状态码: {response.status_code}")
@@ -882,10 +923,14 @@ def start_robot_process(brand, config):
         '''处理接收消息事件'''
         downloaded_path = None
         try:
-            data_dict = json.loads(JSON.marshal(data)) 
+            data_dict = json.loads(JSON.marshal(data))
             message_id = data_dict["event"]["message"]["message_id"]
             chat_id = data_dict["event"]["message"]["chat_id"] # 获取聊天ID
             chat_type = data_dict["event"]["message"]["chat_type"]
+            
+            # 解析消息创建时间
+            create_time_ms = int(data_dict["event"]["message"].get("create_time", 0))
+            formatted_msg_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(create_time_ms/1000)) if create_time_ms else "未知时间"
             
             # 判断当前群组是否在允许重复查询的白名单中
             is_allow_repeat = chat_id in ALLOW_REPEAT_CHATS
@@ -901,6 +946,9 @@ def start_robot_process(brand, config):
             msg_type = data_dict["event"]["message"]["message_type"]
             
             feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], brand)
+            
+            # 获取群名称
+            chat_name = feishu.get_chat_info(chat_id) if chat_type == "group" else "私聊消息"
             
             if msg_type == "text":
                 # 文本消息直接pass，不处理
@@ -960,14 +1008,20 @@ def start_robot_process(brand, config):
                                 # --- 修改部分：如果查询失败（success为False），转发图片和原因到新的Webhook数组 ---
                                 if not query_result.get('success'):
                                     error_msg = query_result.get('error_message', '查询接口返回失败')
-                                    # 简便完善通知：增加飞书内跳转链接，免去额外查消息麻烦
-                                    jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
-                                    forward_msg = f"⚠️ 设备查询失败通知\n品牌: {brand.upper()}\n商品码: {product_code}\n原因: {error_msg}\n🔗 [点击跳转到原始消息]({jump_url})"
                                     
                                     # 如果不在免打扰白名单中，发送异常通知
                                     if not is_allow_repeat:
+                                        forward_parts = [
+                                            "⚠️ 设备查询失败通知",
+                                            f"品牌: {brand.upper()}",
+                                            f"群聊: {chat_name}",
+                                            f"消息时间: {formatted_msg_time}",
+                                            f"商品码: {product_code}",
+                                            f"原因: {error_msg}"
+                                        ]
+                                        
                                         # 发送文本原因
-                                        WebhookNotifier.send_notification(forward_msg, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                        WebhookNotifier.send_notification(forward_parts, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                                         # 上传并发送图片
                                         uploaded_key = feishu.upload_image(downloaded_path)
                                         if uploaded_key:
@@ -986,6 +1040,8 @@ def start_robot_process(brand, config):
                                     notification_parts.append(f"🎯 发现符合条件的设备！")
                                     notification_parts.append("")
                                     notification_parts.append(f"🏷️ 品牌: {brand.upper()}")
+                                    notification_parts.append(f"👥 群聊: {chat_name}")
+                                    notification_parts.append(f"⏰ 消息时间: {formatted_msg_time}")
                                     notification_parts.append(f"🔢 商品唯一码: {product_code}")
                                     notification_parts.append(f"📊 查询次数: 第{query_count}次查询")
                                     
@@ -1025,14 +1081,9 @@ def start_robot_process(brand, config):
                                     
                                     notification_parts.append("")
                                     notification_parts.append("✅ 此设备符合条件，请及时处理！")
-                                    # 增加跳转链接
-                                    jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
-                                    notification_parts.append(f"🔗 [点击跳转到群聊聊天记录]({jump_url})")
-                                    
-                                    notification_message = "\n".join(notification_parts)
                                     
                                     # 发送文本通知
-                                    WebhookNotifier.send_notification(notification_message)
+                                    WebhookNotifier.send_notification(notification_parts)
                                     
                                     # 上传图片并发送图片通知
                                     # 使用最终保存的图片路径
@@ -1088,8 +1139,14 @@ def start_robot_process(brand, config):
                                 )
                                 # --- 修改部分：识别失败转发，白名单内不转发 ---
                                 if not is_allow_repeat:
-                                    jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
-                                    WebhookNotifier.send_notification(f"⚠️ 识别失败通知\n品牌: {brand.upper()}\n原因: 未提取到唯一码\n🔗 [跳转消息]({jump_url})", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                    fail_msg_parts = [
+                                        "⚠️ 识别失败通知",
+                                        f"品牌: {brand.upper()}",
+                                        f"群聊: {chat_name}",
+                                        f"消息时间: {formatted_msg_time}",
+                                        "原因: 未提取到唯一码"
+                                    ]
+                                    WebhookNotifier.send_notification(fail_msg_parts, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                                     uploaded_key = feishu.upload_image(downloaded_path)
                                     if uploaded_key:
                                         WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
@@ -1107,8 +1164,14 @@ def start_robot_process(brand, config):
                             )
                             # --- 修改部分：OCR失败转发，白名单内不转发 ---
                             if not is_allow_repeat:
-                                jump_url = f"https://applink.feishu.cn/client/message/link/open?message_id={message_id}"
-                                WebhookNotifier.send_notification(f"⚠️ OCR失败通知\n品牌: {brand.upper()}\n原因: 百度OCR未返回文字\n🔗 [跳转消息]({jump_url})", custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
+                                ocr_fail_parts = [
+                                    "⚠️ OCR失败通知",
+                                    f"品牌: {brand.upper()}",
+                                    f"群聊: {chat_name}",
+                                    f"消息时间: {formatted_msg_time}",
+                                    "原因: 百度OCR未返回文字"
+                                ]
+                                WebhookNotifier.send_notification(ocr_fail_parts, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
                                 uploaded_key = feishu.upload_image(downloaded_path)
                                 if uploaded_key:
                                     WebhookNotifier.send_notification(None, uploaded_key, custom_webhooks=ERROR_NOTIFICATION_WEBHOOKS)
