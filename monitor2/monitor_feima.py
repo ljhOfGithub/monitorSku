@@ -134,6 +134,14 @@ class JDSKUMonitor:
         except Exception as e:
             print(f"❌ 解析cookies字符串时出错: {e}")
             return {}
+
+    def generate_jd_deep_link(self, sku_id):
+        """生成京东APP唤起链接并封装为飞书富文本标签"""
+        target_url = f"https://item.m.jd.com/product/{sku_id}.html"
+        params_dict = {"category": "jump", "des": "m", "url": target_url}
+        encoded_params = quote(json.dumps(params_dict, separators=(',', ':')))
+        deep_link_url = f"openapp.jdmobile://virtual?params={encoded_params}"
+        return [{"tag": "a", "text": "点击立即购买", "href": deep_link_url}]
     
     def signal_handler(self, signum, frame):
         """处理退出信号"""
@@ -443,17 +451,31 @@ class JDSKUMonitor:
             json.dump(self.monitor_results, f, ensure_ascii=False, indent=2)
         # print("💾 监控结果已保存")
     
-    def send_feishu_notification(self, message, webhook_url):
-        """发送飞书通知到指定机器人"""
+    def send_feishu_notification(self, message, webhook_url, is_post=False):
+        """发送飞书通知到指定机器人 (支持富文本)"""
         if not webhook_url:
             return False
         
-        data = {
-            "msg_type": "text",
-            "content": {
-                "text": message
+        if is_post:
+            # 这里的 message 应当是 content 列表
+            data = {
+                "msg_type": "post",
+                "content": {
+                    "post": {
+                        "zh_cn": {
+                            "title": "京东监控系统通知",
+                            "content": message
+                        }
+                    }
+                }
             }
-        }
+        else:
+            data = {
+                "msg_type": "text",
+                "content": {
+                    "text": message
+                }
+            }
         
         headers = {
             'Content-Type': 'application/json; charset=utf-8'
@@ -470,7 +492,7 @@ class JDSKUMonitor:
             print(f"❌ 飞书通知发送异常: {e}")
             return False
     
-    def send_to_all_webhooks(self, message):
+    def send_to_all_webhooks(self, message, is_post=False):
         """发送通知到所有机器人"""
         if not self.webhook_urls:
             print("❌ 未配置飞书webhook URL")
@@ -478,7 +500,7 @@ class JDSKUMonitor:
         
         success_count = 0
         for i, webhook_url in enumerate(self.webhook_urls, 1):
-            if self.send_feishu_notification(message, webhook_url):
+            if self.send_feishu_notification(message, webhook_url, is_post=is_post):
                 success_count += 1
                 print(f"✅ 机器人 {i} 发送成功")
             else:
@@ -529,19 +551,26 @@ class JDSKUMonitor:
         for product in new_products:
             sku = product['sku_id']
             title = product.get('title', '未知')
+            deep_link_tag = self.generate_jd_deep_link(sku)
             
-            message = f"🚨 发现新SKU！\n\n"
-            message += f"📊 关键词: {keyword}\n"
+            # 构造富文本内容
+            post_content = [
+                [{"tag": "text", "text": "🚨 发现新SKU！\n"}],
+                [{"tag": "text", "text": f"📊 关键词: {keyword}\n"}],
+            ]
+            
             if min_price > 0 or max_price > 0:
-                message += f"💰 价格范围: {min_price}-{max_price}元\n"
-            message += f"🆕 新SKU: {sku}\n"
-            message += f"📦 标题: {title}\n"
-            # message += f"💰 支付链接: https://trade.m.jd.com/checkout?commlist={sku},,1#/index\n"
-            message += f"🔗 详情链接: https://item.m.jd.com/product/{sku}.html\n"
-            message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                post_content.append([{"tag": "text", "text": f"💰 价格范围: {min_price}-{max_price}元\n"}])
+            
+            post_content.extend([
+                [{"tag": "text", "text": f"🆕 新SKU: {sku}\n"}],
+                [{"tag": "text", "text": f"📦 标题: {title}\n"}],
+                [{"tag": "text", "text": "🔗 "}] + deep_link_tag + [{"tag": "text", "text": "\n"}],
+                [{"tag": "text", "text": f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"}]
+            ])
             
             # print(f"📤 立即发送新SKU通知: {sku}")
-            # self.send_to_all_webhooks(message)
+            # self.send_to_all_webhooks(post_content, is_post=True)
             
             # 单个SKU通知间短暂延迟
             time.sleep(2)
@@ -562,27 +591,30 @@ class JDSKUMonitor:
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
         
-        message = f"⚠️⚠️⚠️ {self.monitor_type}京东商品监控通知\n"
-        message += f"📊 关键词: {keyword}\n"
-        if min_price > 0 or max_price > 0:
-            message += f"💰 价格范围: {min_price}-{max_price}元\n"
-        message += f"🆕 发现新SKU: {len(new_products)} 个\n"
-        message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        post_content = [
+            [{"tag": "text", "text": f"⚠️⚠️⚠️ {self.monitor_type}京东商品监控通知\n"}],
+            [{"tag": "text", "text": f"📊 关键词: {keyword}\n"}]
+        ]
         
-        # 添加所有新商品链接和详情
-        # message += "📦 所有新商品详情:\n"
+        if min_price > 0 or max_price > 0:
+            post_content.append([{"tag": "text", "text": f"💰 价格范围: {min_price}-{max_price}元\n"}])
+            
+        post_content.extend([
+            [{"tag": "text", "text": f"🆕 发现新SKU: {len(new_products)} 个\n"}],
+            [{"tag": "text", "text": f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"}]
+        ])
+        
         for i, product in enumerate(new_products, 1):
             sku = product['sku_id']
             title = product.get('title', '未知')
+            deep_link_tag = self.generate_jd_deep_link(sku)
             
-            # message += f"{i}. 支付链接: https://trade.m.jd.com/checkout?commlist={sku},,1#/index\n"
-            message += f"     详情链接: https://item.m.jd.com/product/{sku}.html\n"
-            message += f"标题: {title}\n"
-            message += f"SKU: {sku}\n"
-            message += "\n"
+            post_content.append([{"tag": "text", "text": f"{i}. 标题: {title}\n"}])
+            post_content.append([{"tag": "text", "text": f"   SKU: {sku}\n"}])
+            post_content.append([{"tag": "text", "text": "   "}] + deep_link_tag + [{"tag": "text", "text": "\n\n"}])
         
         print(f"📤 发送关键词 '{keyword}' 批量通知到 {len(self.webhook_urls)} 个机器人...")
-        self.send_to_all_webhooks(message)
+        self.send_to_all_webhooks(post_content, is_post=True)
     
     def check_login_status(self, page_content):
         """检查用户登录状态"""
@@ -728,7 +760,7 @@ class JDSKUMonitor:
                                 title = desc_div.find('a').get_text(strip=True)
                             
                             title_lower = title.lower()
-                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由', '手表', '鞋', '耳机', '音响', '音箱', '充电器', '保护套', '保护壳', '手机壳', '充电线', '数据线', 'MateBook']
+                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由', '手表', '鞋', '耳机', '音响', '音箱', '充电器', '保护套', '保护壳', '手机壳', '充电线', '数据线', 'MateBook', 'WATCH', '【9成新】']
                             is_hot_title = any(keyword in title_lower for keyword in hot_keywords)
                             if(is_hot_title):
                                 continue
@@ -940,22 +972,22 @@ class JDSKUMonitor:
             print("ℹ️  没有包含新SKU的关键词，不发送总结通知")
             return
         
-        message = f"{self.monitor_type}监控任务完成总结\n"
-        message += f"⏰ 开始时间: {monitor_data.get('process_timestamp')}\n"
-        message += f"⏰ 结束时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        # message += f"📊 处理关键词: {len(self.keywords_config)} 个\n"
-        message += f"🆕 发现新SKU的关键词: {len(keyword_details_with_new_skus)} 个\n"
-        message += f"🆕 总共发现新SKU: {len(monitor_data['total_new_skus'])} 个\n"
-        # message += f"📁 历史SKU数量: {monitor_data.get('all_existing_skus_count', 0)} 个\n"
-        
+        post_content = [
+            [{"tag": "text", "text": f"{self.monitor_type}监控任务完成总结\n"}],
+            [{"tag": "text", "text": f"⏰ 开始时间: {monitor_data.get('process_timestamp')}\n"}],
+            [{"tag": "text", "text": f"⏰ 结束时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"}],
+            [{"tag": "text", "text": f"📊 处理关键词: {len(self.keywords_config)} 个\n"}],
+            [{"tag": "text", "text": f"🆕 发现新SKU的关键词: {len(keyword_details_with_new_skus)} 个\n"}],
+            [{"tag": "text", "text": f"🆕 总共发现新SKU: {len(monitor_data['total_new_skus'])} 个\n\n"}],
+            [{"tag": "text", "text": f"📁 历史SKU数量: {monitor_data.get('all_existing_skus_count', 0)} 个\n"}]
+        ]
         # 添加每个有新SKU的关键词的详细统计和新SKU链接
-        message += "📋 发现新SKU的关键词详情:\n"
+        post_content.append([{"tag": "text", "text": "📋 发现新SKU的关键词详情:\n"}])
         for keyword, details in keyword_details_with_new_skus.items():
-            message += f"   - {keyword}({details['min_price']}-{details['max_price']}元): {len(details['new_skus'])}个新SKU (总共: {details['total_skus']} 个)\n"
+            post_content.append([{"tag": "text", "text": f"   - {keyword}({details['min_price']}-{details['max_price']}元): {len(details['new_skus'])}个新SKU\n"}])
             
             # 显示新SKU的具体链接
             if details['new_skus']:
-                message += f"     新SKU链接: "
                 for sku in details['new_skus']:
                     # 查找对应的商品信息
                     product_info = None
@@ -964,16 +996,14 @@ class JDSKUMonitor:
                             product_info = product
                             break
                     
-                    if product_info:
-                        title = product_info.get('title', '未知商品')
-                        # message += f"支付链接:   https://trade.m.jd.com/checkout?commlist={sku},,1#/index - {title}\n"
-                        message += f"详情页面:   https://item.m.jd.com/product/{sku}.html - {title}\n"
-                    else:
-                        message += f"https://item.m.jd.com/product/{sku}.html\n"
+                    title = product_info.get('title', '未知商品') if product_info else '未知商品'
+                    deep_link_tag = self.generate_jd_deep_link(sku)
+                    
+                    post_content.append([{"tag": "text", "text": f"     - {title} ({sku}) "}] + deep_link_tag + [{"tag": "text", "text": "\n"}])
         
         print("📤 发送监控总结通知...")
-        self.send_feishu_notification(message, self.alert_webhook_url)
-        
+        self.send_feishu_notification(post_content, self.alert_webhook_url, is_post=True)
+
         # 标记已发送总结报告
         self.has_sent_summary = True
     
