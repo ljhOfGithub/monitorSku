@@ -13,25 +13,36 @@ from lark_oapi import EventDispatcherHandler, ws, JSON, im, LogLevel
 from lark_oapi.api.im.v1 import GetMessageResourceRequest, GetMessageResourceResponse, CreateImageRequest, CreateImageRequestBody
 
 # 全局Webhook配置
-NOTIFICATION_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/2d527f0c-f072-4c32-aaff-f5daca6e2e3e"
+NOTIFICATION_WEBHOOKS = [
+    "https://open.feishu.cn/open-apis/bot/v2/hook/2d527f0c-f072-4c32-aaff-f5daca6e2e3e",
+    "https://open.feishu.cn/open-apis/bot/v2/hook/a37f056a-d003-4733-8807-cbbc9daa0736"
+]
 
 # 新增：出错时转发图片的Webhook数组
 ERROR_NOTIFICATION_WEBHOOKS = [
     "https://open.feishu.cn/open-apis/bot/v2/hook/93722879-e59e-4210-8ec2-014d1d8238be",
-    "https://open.feishu.cn/open-apis/bot/v2/hook/d87f2f67-e9c9-4981-969b-50d63d0473b9",
+    "https://open.feishu.cn/open-apis/bot/v2/hook/9de31a77-4a87-4ec3-9b6c-f03c9be563ca"
 ]
 
 # 新增：允许重复查询且不发送错误通知的群聊ID数组
 # 你可以从消息的 chat_id 字段获取并填入此处
 ALLOW_REPEAT_CHATS = [
-    "oc_7145fcf5927728859f48fadbb6dfc188",
+    # 飞马
     "oc_0533d67247702c2e5315510e3159d9e4",
     "oc_b63317a873972ad8ebc465831d2f10e9",
     "oc_6a74684a01003b8d4cb5cc741a3b4c46",
     "oc_a6f298cae9bbf96e11c626fe59c376a3",
     "oc_c77a765a796b39bc17f9a02d870eca01",
     "oc_7e372255d26ef779ea0b20755b590459",
-    "oc_b121039e571364f2060bf8bdc8c6023b"
+    "oc_b121039e571364f2060bf8bdc8c6023b",
+    # 飞牛
+    "oc_b306b61731b54d1cbb94e2c4bd512351",
+    "oc_680b7fe8b214ce7423d478b82255edf8",
+    "oc_66496232b465da72b6d5c96d4e8c85fb",
+    "oc_fac00294d51a077ebcd5bd7a0b1d1ba8",
+    "oc_c53c35da2225bbb3011b4d73aacda770",
+    "oc_6789ae6adb213984a1db4216074013c1",
+    "oc_ef31934bab792bd9a2be12a8fcf6a6ee"
 ]
 
 # 机器人配置 - 修改键名为 robot_name
@@ -147,7 +158,7 @@ class WebhookNotifier:
     def send_notification(message, image_key=None, custom_webhooks=None, link_data=None):
         '''发送通知到Webhook群聊'''
         try:
-            urls = custom_webhooks if custom_webhooks else [NOTIFICATION_WEBHOOK_URL]
+            urls = custom_webhooks if custom_webhooks else NOTIFICATION_WEBHOOKS
             
             if image_key:
                 # 发送图片消息
