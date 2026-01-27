@@ -34,43 +34,78 @@ ALLOW_REPEAT_CHATS = [
     "oc_b121039e571364f2060bf8bdc8c6023b"
 ]
 
-# 机器人配置
+# 机器人配置 - 修改键名为 robot_name
 ROBOT_CONFIGS = {
-    'huawei': {
+    'huawei_feima': {
         'APP_ID': 'cli_a9c1c36293b89ccb',
         'APP_SECRET': 'P4CNzl7sFaqWWKzJqMPoSdHygzp6PeY4',
         'brand': 'huawei'
     },
-    'honor': {
+    'honor_feima': {
         'APP_ID': 'cli_a9c13d1b39781ccd',
         'APP_SECRET': 'AXfAkKFMhTfcnb73v9tWLgKhjrN63X6E',
         'brand': 'honor'
     },
-    'xiaomi': {
+    'xiaomi_feima': {
         'APP_ID': 'cli_a9c13ddd44b85cb2',
         'APP_SECRET': 'KV44ecFHmM4gK3gxMdoZTdY3m8azgZ4l',
         'brand': 'xiaomi'
     },
-    'oppo': {
+    'oppo_feima': {
         'APP_ID': 'cli_a9c64bbc6e79dcc8',
         'APP_SECRET': 'N8aWjR6S4Nmc4sDXi86Hreed7X2Skz0x',
         'brand': 'oppo'
     },
-    'realme': {
+    'realme_feima': {
         'APP_ID': 'cli_a9c6445865ba1cd3',
         'APP_SECRET': 'j1ZuijKWoNdIZfVeSE1s4ga4fAGf40Ph',
         'brand': 'realme'
     },
-    'vivo': {
+    'vivo_feima': {
         'APP_ID': 'cli_a9c644a24cf81cd5',
         'APP_SECRET': 'Am2nNXLOt8LtPNHWcVkKXN5Je63lQUQx',
         'brand': 'vivo'
     },
-    'apple_warranty_pro': {
+    'apple_feima': {
         'APP_ID': 'cli_a9ee50b9fcb81cd1',
         'APP_SECRET': 'einkrYJFcnyByrTbp1RsnhEFzbU0MKBR',
         'brand': 'apple_warranty_pro'
-    }
+    },
+    'huawei_feiniu': {
+        'APP_ID': 'cli_a99551173af8dcd5',
+        'APP_SECRET': 'NbfEX7gsuajHQmRIzUTUXdFjMP6w0j23',
+        'brand': 'huawei'
+    },
+    'honor_feiniu': {
+        'APP_ID': 'cli_a9aadf07b8f8dcdd',
+        'APP_SECRET': 'TBVyiDrbCU97C5Oh6ZpXogXfbTveOSFp',
+        'brand': 'honor'
+    },
+    'xiaomi_feiniu': {
+        'APP_ID': 'cli_a9aad9df96b85cc5',
+        'APP_SECRET': '72Hhr7fZsGlVVnwhp5D5YcgEvf1XCRzD',
+        'brand': 'xiaomi'
+    },
+    'oppo_feiniu': {
+        'APP_ID': 'cli_a9aad45314785cdc',
+        'APP_SECRET': '2gVQdYFTcJBAg4dJoE4n0tLmIjXaUaOw',
+        'brand': 'oppo'
+    },
+    'realme_feiniu': {
+        'APP_ID': 'cli_a9aacadfe0b89cc6',
+        'APP_SECRET': '4OhcUsX1YvJMFXJ6jtKbWdF131wDL2gx',
+        'brand': 'realme'
+    },
+    'vivo_feiniu': {
+        'APP_ID': 'cli_a9aac4095838dcca',
+        'APP_SECRET': '2yrhLp4G07a4sQoSvkh6Jg1QqhKcofD5',
+        'brand': 'vivo'
+    },
+    'apple_feiniu': {
+        'APP_ID': 'cli_a9f2000d8577dbc4',
+        'APP_SECRET': 'iu1lQOht6K3k1YEpwJ6KT16TObMeKsxV',
+        'brand': 'apple_warranty_pro'
+    },
 }
 
 class DeviceQueryConfig:
@@ -166,15 +201,15 @@ class WebhookNotifier:
             return False
 
     @staticmethod
-    def send_error_notification(error_message, image_path=None, brand=None):
+    def send_error_notification(error_message, image_path=None, robot_name=None):
         '''发送错误通知到Webhook群聊'''
         try:
             # 构建错误消息
             error_parts = []
             error_parts.append("🚨 系统发生异常")
             error_parts.append("")
-            if brand:
-                error_parts.append(f"🏷️ 品牌: {brand.upper()}")
+            if robot_name:
+                error_parts.append(f"🤖 机器人: {robot_name.upper()}")
             error_parts.append(f"⏰ 时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
             error_parts.append(f"📛 错误信息: {error_message}")
             error_parts.append("")
@@ -190,7 +225,7 @@ class WebhookNotifier:
                 feishu = None
                 for config in ROBOT_CONFIGS.values():
                     try:
-                        feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], brand or 'unknown')
+                        feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], robot_name or 'unknown')
                         break
                     except:
                         continue
@@ -209,8 +244,9 @@ class WebhookNotifier:
 class MessageIdManager:
     '''消息ID管理器，持久化存储已处理的消息ID'''
     
-    def __init__(self, brand):
+    def __init__(self, brand, robot_name):
         self.brand = brand
+        self.robot_name = robot_name
         self.processed_file = f"{brand}_processed_messages.json"
         self.processed_messages = self.load_processed_messages()
     
@@ -230,13 +266,13 @@ class MessageIdManager:
                     if len(filtered_data) != len(data):
                         self.save_processed_messages(filtered_data)
                     
-                    logging.info(f"[{self.brand}] 已加载 {len(filtered_data)} 个历史消息ID")
+                    logging.info(f"[{self.robot_name}] 已加载 {len(filtered_data)} 个历史消息ID")
                     return set(filtered_data.keys())
             else:
-                logging.info(f"[{self.brand}] 无历史消息ID文件，创建新文件")
+                logging.info(f"[{self.robot_name}] 无历史消息ID文件，创建新文件")
                 return set()
         except Exception as e:
-            logging.error(f"[{self.brand}] 加载消息ID文件失败: {e}")
+            logging.error(f"[{self.robot_name}] 加载消息ID文件失败: {e}")
             return set()
     
     def save_processed_messages(self, data=None):
@@ -249,7 +285,7 @@ class MessageIdManager:
             with open(self.processed_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logging.error(f"[{self.brand}] 保存消息ID文件失败: {e}")
+            logging.error(f"[{self.robot_name}] 保存消息ID文件失败: {e}")
     
     def add_message(self, message_id):
         '''添加已处理的消息ID'''
@@ -302,10 +338,10 @@ class ImeiQueryManager:
 class FeishuApi:
     '''FeishuApi类用于处理与飞书API的交互'''
     
-    def __init__(self, app_id, app_secret, brand):
+    def __init__(self, app_id, app_secret, robot_name):
         self.app_id = app_id
         self.app_secret = app_secret
-        self.brand = brand
+        self.robot_name = robot_name
         
         # 创建 Lark client
         self.client = lark.Client.builder() \
@@ -331,9 +367,9 @@ class FeishuApi:
             result = response.json()
             self.token = result.get('tenant_access_token')
             self.token_expire_time = time.time() + 5400
-            logging.info(f"[{self.brand}] Token刷新成功")
+            logging.info(f"[{self.robot_name}] Token刷新成功")
         except Exception as e:
-            logging.error(f"[{self.brand}] 刷新token失败: {e}")
+            logging.error(f"[{self.robot_name}] 刷新token失败: {e}")
             self.token = None
 
     def get_token(self):
@@ -360,7 +396,7 @@ class FeishuApi:
                 return result.get('data', {}).get('name', "未知群聊")
             return "未知群聊"
         except Exception as e:
-            logging.error(f"[{self.brand}] 获取群信息失败: {e}")
+            logging.error(f"[{self.robot_name}] 获取群信息失败: {e}")
             return "未知群聊"
 
     def reply_message(self, message_id, message, chat_type="p2p"):
@@ -368,7 +404,7 @@ class FeishuApi:
         try:
             token = self.get_token()
             if not token:
-                logging.error(f"[{self.brand}] 无法获取有效token")
+                logging.error(f"[{self.robot_name}] 无法获取有效token")
                 return None
 
             url = self.REPLY_MESSAGE_URL_TEMPLATE.format(message_id=message_id)
@@ -388,10 +424,10 @@ class FeishuApi:
             
             response = self.session.post(url, headers=headers, json=data)
             response.raise_for_status()
-            logging.info(f"[{self.brand}] 消息回复成功")
+            logging.info(f"[{self.robot_name}] 消息回复成功")
             return response.json()
         except Exception as e:
-            logging.error(f"[{self.brand}] 回复消息失败: {e}")
+            logging.error(f"[{self.robot_name}] 回复消息失败: {e}")
             if "401" in str(e) or "token" in str(e).lower():
                 self.refresh_token()
             return None
@@ -411,7 +447,7 @@ class FeishuApi:
 
             # 处理失败返回
             if not response.success():
-                logging.error(f"[{self.brand}] 下载图片失败, code: {response.code}, msg: {response.msg}")
+                logging.error(f"[{self.robot_name}] 下载图片失败, code: {response.code}, msg: {response.msg}")
                 return None
 
             # 确保目录存在
@@ -421,11 +457,11 @@ class FeishuApi:
             with open(save_path, "wb") as f:
                 f.write(response.file.read())
             
-            logging.info(f"[{self.brand}] 图片下载成功: {save_path}")
+            logging.info(f"[{self.robot_name}] 图片下载成功: {save_path}")
             return save_path
             
         except Exception as e:
-            logging.error(f"[{self.brand}] 下载图片时出错: {e}")
+            logging.error(f"[{self.robot_name}] 下载图片时出错: {e}")
             return None
 
     def upload_image(self, image_path):
@@ -433,7 +469,7 @@ class FeishuApi:
         try:
             # 确保图片文件存在
             if not os.path.exists(image_path):
-                logging.error(f"[{self.brand}] 图片文件不存在: {image_path}")
+                logging.error(f"[{self.robot_name}] 图片文件不存在: {image_path}")
                 return None
 
             # 打开图片文件
@@ -451,16 +487,16 @@ class FeishuApi:
 
                 # 处理失败返回
                 if not response.success():
-                    logging.error(f"[{self.brand}] 上传图片失败, code: {response.code}, msg: {response.msg}")
+                    logging.error(f"[{self.robot_name}] 上传图片失败, code: {response.code}, msg: {response.msg}")
                     return None
 
                 # 返回图片key
                 image_key = response.data.image_key
-                logging.info(f"[{self.brand}] 图片上传成功，image_key: {image_key}")
+                logging.info(f"[{self.robot_name}] 图片上传成功，image_key: {image_key}")
                 return image_key
 
         except Exception as e:
-            logging.error(f"[{self.brand}] 上传图片时出错: {e}")
+            logging.error(f"[{self.robot_name}] 上传图片时出错: {e}")
             return None
 
 class BaiduOCR:
@@ -707,7 +743,7 @@ class DeviceQuery:
         #             return current
                 
         #         i = j
-            
+        
         logging.warning("未找到有效的商品唯一码")
         return None
     
@@ -907,11 +943,12 @@ def check_meets_conditions(brand, device_info):
         logging.error(f"检查条件时出错: {e}")
         return False, f"检查条件时出错: {str(e)}"
 
-def start_robot_process(brand, config):
+def start_robot_process(robot_name, config):
     '''在独立进程中启动机器人'''
     # 初始化消息ID管理器
-    message_manager = MessageIdManager(brand)
-    logger = logging.getLogger(brand)
+    brand = config['brand'] # 获取真实品牌名用于API查询
+    message_manager = MessageIdManager(brand, robot_name)
+    logger = logging.getLogger(robot_name)
     
     def should_process_message(message_data):
         '''判断是否应该处理该消息'''
@@ -958,7 +995,7 @@ def start_robot_process(brand, config):
             
             msg_type = data_dict["event"]["message"]["message_type"]
             
-            feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], brand)
+            feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], robot_name)
             
             # 获取群名称
             chat_name = feishu.get_chat_info(chat_id) if chat_type == "group" else "私聊消息"
@@ -1052,7 +1089,7 @@ def start_robot_process(brand, config):
                                     notification_parts = []
                                     notification_parts.append(f"🎯 发现符合条件的设备！")
                                     notification_parts.append("")
-                                    notification_parts.append(f"🏷️ 品牌: {brand.upper()}")
+                                    notification_parts.append(f"🤖 机器人: {robot_name.upper()}")
                                     notification_parts.append(f"👥 群聊: {chat_name}")
                                     notification_parts.append(f"⏰ 消息时间: {formatted_msg_time}")
                                     notification_parts.append(f"🔢 商品唯一码: {product_code}")
@@ -1105,11 +1142,11 @@ def start_robot_process(brand, config):
                                         uploaded_image_key = feishu.upload_image(image_to_upload)
                                         if uploaded_image_key:
                                             WebhookNotifier.send_notification(None, uploaded_image_key)
-                                            logger.info(f"[{brand}] 已发送符合条件的设备通知和图片到Webhook")
+                                            logger.info(f"[{robot_name}] 已发送符合条件的设备通知和图片到Webhook")
                                         else:
-                                            logger.warning(f"[{brand}] 图片上传失败，仅发送文本通知")
+                                            logger.warning(f"[{robot_name}] 图片上传失败，仅发送文本通知")
                                     else:
-                                        logger.warning(f"[{brand}] 图片文件不存在，无法上传: {image_to_upload}")
+                                        logger.warning(f"[{robot_name}] 图片文件不存在，无法上传: {image_to_upload}")
                                 
                                 # 格式化用户回复消息
                                 reply_parts = []
@@ -1144,7 +1181,7 @@ def start_robot_process(brand, config):
                                 )
                                 
                             else:
-                                error_text = f'[{brand}] ❌ 未识别到有效的商品唯一码（15-20位数字）'
+                                error_text = f'[{robot_name}] ❌ 未识别到有效的商品唯一码（15-20位数字）'
                                 feishu.reply_message(
                                     message_id=message_id,
                                     message=error_text,
@@ -1154,7 +1191,7 @@ def start_robot_process(brand, config):
                                 if not is_allow_repeat:
                                     fail_msg_parts = [
                                         "⚠️ 识别失败通知",
-                                        f"品牌: {brand.upper()}",
+                                        f"机器人: {robot_name.upper()}",
                                         f"群聊: {chat_name}",
                                         f"消息时间: {formatted_msg_time}",
                                         "原因: 未提取到唯一码"
@@ -1169,7 +1206,7 @@ def start_robot_process(brand, config):
                                     os.remove(downloaded_path)
                             
                         else:
-                            error_text = f'[{brand}] ❌ 文字识别失败，请确保图片清晰且包含商品条码。'
+                            error_text = f'[{robot_name}] ❌ 文字识别失败，请确保图片清晰且包含商品条码。'
                             feishu.reply_message(
                                 message_id=message_id,
                                 message=error_text,
@@ -1179,7 +1216,7 @@ def start_robot_process(brand, config):
                             if not is_allow_repeat:
                                 ocr_fail_parts = [
                                     "⚠️ OCR失败通知",
-                                    f"品牌: {brand.upper()}",
+                                    f"机器人: {robot_name.upper()}",
                                     f"群聊: {chat_name}",
                                     f"消息时间: {formatted_msg_time}",
                                     "原因: 百度OCR未返回文字"
@@ -1196,7 +1233,7 @@ def start_robot_process(brand, config):
                     else:
                         feishu.reply_message(
                             message_id=message_id,
-                            message=f'[{brand}] ❌ 下载图片失败，请稍后重试。',
+                            message=f'[{robot_name}] ❌ 下载图片失败，请稍后重试。',
                             chat_type=chat_type
                         )
                         if not is_allow_repeat:
@@ -1207,8 +1244,8 @@ def start_robot_process(brand, config):
         except Exception as e:
             logger.error(f"处理消息时出错: {e}")
             # 发送错误通知到Webhook（系统级错误保持原有上报，或根据需要加上跳转）
-            error_message = f"品牌: {brand}\n错误类型: {type(e).__name__}\n错误详情: {str(e)}"
-            WebhookNotifier.send_error_notification(error_message, downloaded_path, brand)
+            error_message = f"机器人: {robot_name}\n错误类型: {type(e).__name__}\n错误详情: {str(e)}"
+            WebhookNotifier.send_error_notification(error_message, downloaded_path, robot_name)
             
             # 删除临时文件
             if downloaded_path and os.path.exists(downloaded_path):
@@ -1223,7 +1260,7 @@ def start_robot_process(brand, config):
     
     for attempt in range(max_retries):
         try:
-            logger.info(f"启动 {brand} 机器人 (尝试 {attempt + 1}/{max_retries})...")
+            logger.info(f"启动 {robot_name} 机器人 (尝试 {attempt + 1}/{max_retries})...")
             
             event_handler = EventDispatcherHandler.builder("", "") \
                 .register_p2_im_message_receive_v1(handle_p2_im_message) \
@@ -1241,12 +1278,12 @@ def start_robot_process(brand, config):
             break
             
         except Exception as e:
-            logger.error(f"启动 {brand} 机器人失败 (尝试 {attempt + 1}): {e}")
+            logger.error(f"启动 {robot_name} 机器人失败 (尝试 {attempt + 1}): {e}")
             if attempt < max_retries - 1:
                 logger.info(f"{retry_delay}秒后重试...")
                 time.sleep(retry_delay)
             else:
-                logger.error(f"启动 {brand} 机器人最终失败，已达到最大重试次数")
+                logger.error(f"启动 {robot_name} 机器人最终失败，已达到最大重试次数")
 
 def main():
     '''使用多进程启动所有机器人'''
@@ -1254,15 +1291,15 @@ def main():
     
     processes = []
     
-    for brand, config in ROBOT_CONFIGS.items():
+    for robot_name, config in ROBOT_CONFIGS.items():
         process = multiprocessing.Process(
             target=start_robot_process, 
-            args=(brand, config),
-            name=f"Robot-{brand}"
+            args=(robot_name, config),
+            name=f"Robot-{robot_name}"
         )
         processes.append(process)
         process.start()
-        logging.info(f"{brand} 机器人进程已启动 (PID: {process.pid})")
+        logging.info(f"{robot_name} 机器人进程已启动 (PID: {process.pid})")
         time.sleep(3)
     
     logging.info("所有机器人进程已启动，按 Ctrl+C 停止")
