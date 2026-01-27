@@ -24,7 +24,14 @@ ERROR_NOTIFICATION_WEBHOOKS = [
 # 新增：允许重复查询且不发送错误通知的群聊ID数组
 # 你可以从消息的 chat_id 字段获取并填入此处
 ALLOW_REPEAT_CHATS = [
-    "oc_7145fcf5927728859f48fadbb6dfc188", 
+    "oc_7145fcf5927728859f48fadbb6dfc188",
+    "oc_0533d67247702c2e5315510e3159d9e4",
+    "oc_b63317a873972ad8ebc465831d2f10e9",
+    "oc_6a74684a01003b8d4cb5cc741a3b4c46",
+    "oc_a6f298cae9bbf96e11c626fe59c376a3",
+    "oc_c77a765a796b39bc17f9a02d870eca01",
+    "oc_7e372255d26ef779ea0b20755b590459",
+    "oc_b121039e571364f2060bf8bdc8c6023b"
 ]
 
 # 机器人配置
@@ -725,49 +732,55 @@ class DeviceQuery:
     @staticmethod
     def query_device_info(product_code, brand):
         '''查询设备信息'''
-        try:
-            params = {
-                'key': DeviceQueryConfig.API_KEY,
-                'type': brand,
-                'sn': product_code
-            }
-            
-            logging.info(f"开始查询设备信息，品牌: {brand}, 商品码: {product_code}")
-            delay = random.uniform(0.1, 0.2)
-            time.sleep(delay)
-            response = requests.get(DeviceQueryConfig.QUERY_URL, params=params)
-            logging.info(f"设备查询响应状态码: {response.status_code}")
-            
-            result = response.json()
-            
-            if result.get('code') == 0:
-                # 查询成功
-                data = result.get('data', {})
-                return {
-                    'success': True,
-                    'product_code': product_code,
-                    'device_info': data,
-                    'raw_response': result
-                }
-            else:
-                # 查询失败
-                error_code = result.get('code')
-                error_message = result.get('message', '未知错误')
-                return {
-                    'success': False,
-                    'error_code': error_code,
-                    'error_message': error_message,
-                    'raw_response': result
+        while True:
+            try:
+                params = {
+                    'key': DeviceQueryConfig.API_KEY,
+                    'type': brand,
+                    'sn': product_code
                 }
                 
-        except Exception as e:
-            logging.error(f"设备查询时出错: {e}")
-            return {
-                'success': False,
-                'error_code': '9999',
-                'error_message': f'查询异常: {str(e)}',
-                'raw_response': {'error': str(e)}
-            }
+                logging.info(f"开始查询设备信息，品牌: {brand}, 商品码: {product_code}")
+                response = requests.get(DeviceQueryConfig.QUERY_URL, params=params, timeout=20)
+                logging.info(f"设备查询响应状态码: {response.status_code}")
+                
+                result = response.json()
+                
+                if result.get('code') == 0:
+                    # 查询成功
+                    data = result.get('data', {})
+                    return {
+                        'success': True,
+                        'product_code': product_code,
+                        'device_info': data,
+                        'raw_response': result
+                    }
+                else:
+                    # 查询失败
+                    error_code = result.get('code')
+                    error_message = result.get('message', '未知错误')
+                    return {
+                        'success': False,
+                        'error_code': error_code,
+                        'error_message': error_message,
+                        'raw_response': result
+                    }
+                    
+            except Exception as e:
+                error_str = str(e)
+                # 检查是否是需要重试的 SSL/连接错误
+                if "UNEXPECTED_EOF_WHILE_READING" in error_str or "Max retries exceeded" in error_str or "HTTPSConnectionPool(host='data.06api.com', port=443): Read timed out." in error_str:
+                    logging.warning(f"检测到网络/SSL波动错误，正在自动重试... 错误详情: {error_str}")
+                    time.sleep(2) # 等待2秒后重试
+                    continue
+                
+                logging.error(f"设备查询时出现非重试范围的错误: {e}")
+                return {
+                    'success': False,
+                    'error_code': '9999',
+                    'error_message': f'查询异常: {str(e)}',
+                    'raw_response': {'error': str(e)}
+                }
 
 def save_query_result(brand, product_code, query_result, image_path, query_count):
     '''保存查询结果（只保存JSON文件）'''
