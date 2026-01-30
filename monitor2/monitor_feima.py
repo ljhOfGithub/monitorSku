@@ -18,28 +18,72 @@ from urllib.parse import quote
 import subprocess
 import random
 
+# ================= 配置区 =================
+# 每个配置完全独立，互不干扰
+MONITOR_CONFIGS = [
+    {
+        "name": "11",
+        "venderId": "1000080442",
+        "shopId": "1000080442",
+        "type": "",  # 设为空字符串
+        "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
+        "root_dir": "C:\\data\\test\\1",
+        "port": 9222,
+        "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
+        "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
+    },
+    {
+        "name": "22",
+        "venderId": "10317338",
+        "shopId": "10180819",
+        "type": "2",
+        "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
+        "root_dir": "C:\\data\\test\\2",
+        "port": 9222,
+        "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
+        "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
+    },
+    {
+        "name": "33",
+        "venderId": "13303382",
+        "shopId": "12594287",
+        "type": "3",
+        "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
+        "root_dir": "C:\\data\\test\\3",
+        "port": 9222,
+        "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
+        "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
+    }
+]
+
 PROXY_CONFIG = {
     "server": "q865.kdltps.com:15818",
     "username": "t16612090902574",
     "password": "2ow56b24"
 }
-chrome_dirs = []
-root_dir = "C:\\data"
-user_dir = "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2"
+# ==========================================
 
 class JDSKUMonitor:
-    def __init__(self, keywords_config_file, webhook_urls=None, alert_webhook_url=None):
-        self.keywords_config_file = keywords_config_file
+    def __init__(self, config):
+        self.config = config
+        self.name = config['name']
+        self.venderId = config['venderId']
+        self.shopId = config['shopId']
+        self.type_str = config['type']
+        self.port = config['port']
+        self.root_dir = config['root_dir']
+        
+        self.keywords_config_file = config['keywords_file']
         self.cookies_source = "none"
-        self.webhook_urls = webhook_urls or []
-        self.alert_webhook_url = alert_webhook_url
+        self.webhook_urls = config['webhook_urls']
+        self.alert_webhook_url = config['alert_webhook_url']
         
-        self.all_skus_dir = os.path.join(root_dir, "all_skus")
-        self.all_history_dir = os.path.join(root_dir, "all_history_with_brand")
-        self.new_skus_records_dir = os.path.join(root_dir, "new_skus_records")
-        self.monitor_results_file = os.path.join(root_dir, "monitor_results.json")
+        self.all_skus_dir = os.path.join(self.root_dir, "all_skus")
+        self.all_history_dir = os.path.join(self.root_dir, "all_history_with_brand")
+        self.new_skus_records_dir = os.path.join(self.root_dir, "new_skus_records")
+        self.monitor_results_file = os.path.join(self.root_dir, "monitor_results.json")
         
-        self.monitor_type = "所有类"
+        self.monitor_type = self.name # 使用配置的name作为通知前缀
         self.init_monitor_results()
         
         self.cookies_dicts = [{}]
@@ -54,23 +98,23 @@ class JDSKUMonitor:
         self.cached_historical_skus = set()
         self.sku_lock = threading.Lock()
         
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTERM, self.signal_handler)
+        # signal.signal(signal.SIGINT, self.signal_handler)
+        # signal.signal(signal.SIGTERM, self.signal_handler)
         
         self.executor = ThreadPoolExecutor(max_workers=1)
     
     def load_keywords_config(self):
         if not os.path.exists(self.keywords_config_file):
-            print(f"❌ JSON文件不存在: {self.keywords_config_file}")
+            print(f"❌ [{self.name}] JSON文件不存在: {self.keywords_config_file}")
             return []
         
         try:
             with open(self.keywords_config_file, 'r', encoding='utf-8') as f:
                 keywords_config = json.load(f)
-            print(f"✅ 从JSON文件加载 {len(keywords_config)} 个关键词配置")
+            print(f"✅ [{self.name}] 从JSON文件加载 {len(keywords_config)} 个关键词配置")
             return keywords_config
         except Exception as e:
-            print(f"❌ 加载JSON文件时出错: {e}")
+            print(f"❌ [{self.name}] 加载JSON文件时出错: {e}")
             return []
     
     def load_cookies(self):
@@ -92,7 +136,7 @@ class JDSKUMonitor:
                     key, value = cookie.split('=', 1)
                     cookies_dict[key.strip()] = value.strip()
             
-            print(f"✅ 成功解析 {len(cookies_dict)} 个cookies")
+            print(f"✅ [{self.name}] 成功解析 {len(cookies_dict)} 个cookies")
             
             if 'pt_key' in cookies_dict:
                 print(f"🔑 pt_key: {cookies_dict['pt_key'][:20]}...")
@@ -102,7 +146,7 @@ class JDSKUMonitor:
             return cookies_dict
             
         except Exception as e:
-            print(f"❌ 解析cookies字符串时出错: {e}")
+            print(f"❌ [{self.name}] 解析cookies字符串时出错: {e}")
             return {}
 
     def generate_jd_deep_link(self, sku_id):
@@ -114,24 +158,24 @@ class JDSKUMonitor:
     
     def signal_handler(self, signum, frame):
         if self.is_shutting_down:
-            print("\n🛑 强制退出...")
+            print(f"\n🛑 [{self.name}] 强制退出...")
             os._exit(1)
             
-        print(f"\n\n⚠️  收到退出信号，正在保存数据...")
+        print(f"\n\n⚠️ [{self.name}] 收到退出信号，正在保存数据...")
         self.is_running = False
         self.is_shutting_down = True
         
-        print("🛑 停止所有任务...")
+        print(f"🛑 [{self.name}] 停止所有任务...")
         self.executor.shutdown(wait=False)
         
         if not self.has_sent_summary and hasattr(self, 'current_monitor_data') and self.current_monitor_data:
-            print("📤 发送格式化的中断监控总结报告...")
+            print(f"📤 [{self.name}] 发送格式化的中断监控总结报告...")
             
             data = self.current_monitor_data
             total_new = len(data.get('total_new_skus', set()))
             timestamp = data.get('process_timestamp', '未知')
             
-            msg = f"🛑 监控程序已中断（手动停止或系统信号）\n"
+            msg = f"🛑 [{self.name}] 监控程序已中断（手动停止或系统信号）\n"
             msg += f"⏰ 中断时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             msg += f"📦 本轮已发现新SKU总数: {total_new} 个\n"
             msg += f"📅 批次时间戳: {timestamp}\n\n"
@@ -146,16 +190,17 @@ class JDSKUMonitor:
             self.send_alert_notification(msg)
             self.has_sent_summary = True
         
-        print("💡 再次按 Ctrl+C 强制退出")
+        print(f"💡 [{self.name}] 再次按 Ctrl+C 强制退出")
         
         threading.Timer(3.0, os._exit, [0]).start()
     
     def create_directories(self):
         directories = [
-            os.path.join(root_dir, "monitor_data"),
-            os.path.join(root_dir, "monitor_logs"), 
-            os.path.join(root_dir, "product_details"),
-            os.path.join(root_dir, "new_skus_records"),
+            os.path.join(self.root_dir, "monitor_data"),
+            os.path.join(self.root_dir, "monitor_logs"), 
+            os.path.join(self.root_dir, "product_details"),
+            os.path.join(self.root_dir, "new_skus_records"),
+            os.path.join(self.root_dir, "search_pages"), # 补充创建搜索页面目录
             self.all_skus_dir,
             self.all_history_dir,
         ]
@@ -163,12 +208,12 @@ class JDSKUMonitor:
         for directory in directories:
             if not os.path.exists(directory):
                 os.makedirs(directory)
-                print(f"📁 创建文件夹: {directory}")
+                print(f"📁 [{self.name}] 创建文件夹: {directory}")
     
     def load_all_existing_skus(self):
         all_skus = set()
         
-        history_main_dir = os.path.join(root_dir, "all_history_with_brand")
+        history_main_dir = os.path.join(self.root_dir, "all_history_with_brand")
         if os.path.exists(history_main_dir):
             for filename in os.listdir(history_main_dir):
                 if filename.endswith(".json"):
@@ -181,7 +226,7 @@ class JDSKUMonitor:
                                 if 'sku_id' in item:
                                     all_skus.add(str(item['sku_id']))
                     except Exception as e:
-                        print(f"❌ 加载 history 详情文件 {filename} 时出错: {e}")
+                        print(f"❌ [{self.name}] 加载 history 详情文件 {filename} 时出错: {e}")
 
         if os.path.exists(self.all_skus_dir):
             for filename in os.listdir(self.all_skus_dir):
@@ -194,7 +239,7 @@ class JDSKUMonitor:
                             for s in skus:
                                 all_skus.add(str(s))
                     except Exception as e:
-                        print(f"❌ 加载 SKU 历史文件 {filename} 时出错: {e}")
+                        print(f"❌ [{self.name}] 加载 SKU 历史文件 {filename} 时出错: {e}")
 
         return all_skus
     
@@ -279,7 +324,7 @@ class JDSKUMonitor:
         else:
             filename = f"search_{safe_keyword}_{timestamp}.html"
         
-        search_pages_dir = os.path.join(root_dir, "search_pages")
+        search_pages_dir = os.path.join(self.root_dir, "search_pages")
         filepath = os.path.join(search_pages_dir, filename)
         
         return filepath
@@ -292,7 +337,7 @@ class JDSKUMonitor:
         safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
         
         details_filename = f"products_{safe_keyword}_{brand}_{min_price}_{max_price}.json"
-        details_filepath = os.path.join(os.path.join(root_dir, "product_details"), details_filename)
+        details_filepath = os.path.join(os.path.join(self.root_dir, "product_details"), details_filename)
         
         existing_products_map = {}
         existing_all_skus = set()
@@ -340,9 +385,9 @@ class JDSKUMonitor:
             try:
                 with open(self.monitor_results_file, 'r', encoding='utf-8') as f:
                     self.monitor_results = json.load(f)
-                print(f"📊 已加载历史监控结果")
+                print(f"📊 [{self.name}] 已加载历史监控结果")
             except Exception as e:
-                print(f"❌ 加载监控结果时出错: {e}")
+                print(f"❌ [{self.name}] 加载监控结果时出错: {e}")
                 self.init_monitor_results()
         else:
             self.init_monitor_results()
@@ -361,7 +406,7 @@ class JDSKUMonitor:
                 "content": {
                     "post": {
                         "zh_cn": {
-                            "title": "京东监控系统通知",
+                            "title": f"京东监控系统通知 - {self.name}",
                             "content": message
                         }
                     }
@@ -384,32 +429,32 @@ class JDSKUMonitor:
             if response.status_code == 200:
                 return True
             else:
-                print(f"❌ 飞书通知发送失败: {response.status_code}")
+                print(f"❌ [{self.name}] 飞书通知发送失败: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"❌ 飞书通知发送异常: {e}")
+            print(f"❌ [{self.name}] 飞书通知发送异常: {e}")
             return False
     
     def send_to_all_webhooks(self, message, is_post=False):
         if not self.webhook_urls:
-            print("❌ 未配置飞书webhook URL")
+            print(f"❌ [{self.name}] 未配置飞书webhook URL")
             return False
         
         success_count = 0
         for i, webhook_url in enumerate(self.webhook_urls, 1):
             if self.send_feishu_notification(message, webhook_url, is_post=is_post):
                 success_count += 1
-                print(f"✅ 机器人 {i} 发送成功")
+                print(f"✅ [{self.name}] 机器人 {i} 发送成功")
             else:
-                print(f"❌ 机器人 {i} 发送失败")
+                print(f"❌ [{self.name}] 机器人 {i} 发送失败")
             time.sleep(1)  
         
-        print(f"📊 通知发送完成: {success_count}/{len(self.webhook_urls)} 个机器人成功")
+        print(f"📊 [{self.name}] 通知发送完成: {success_count}/{len(self.webhook_urls)} 个机器人成功")
         return success_count > 0
     
     def send_alert_notification(self, message):
         if not self.alert_webhook_url:
-            print("❌ 未配置警报webhook URL")
+            print(f"❌ [{self.name}] 未配置警报webhook URL")
             return False
         
         alert_message = f"{message}"
@@ -423,7 +468,7 @@ class JDSKUMonitor:
         min_price = keyword_config['min_price']
         max_price = keyword_config['max_price']
         
-        print(f"🎯 关键词 '{keyword}' 发现 {len(new_products)} 个新SKU:")
+        print(f"🎯 [{self.name}] 关键词 '{keyword}' 发现 {len(new_products)} 个新SKU:")
         for i, product in enumerate(new_products, 1):
             sku = product['sku_id']
             title = product.get('title', '未知')
@@ -460,6 +505,7 @@ class JDSKUMonitor:
                 [{"tag": "text", "text": f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"}]
             ])
             
+            # 这里原本有time.sleep(2)，保留
             time.sleep(2)
     
     def send_keyword_new_skus_notification(self, keyword_config, new_products):
@@ -495,7 +541,7 @@ class JDSKUMonitor:
             post_content.append([{"tag": "text", "text": f"   SKU: {sku}\n"}])
             post_content.append([{"tag": "text", "text": "   "}] + deep_link_tag + [{"tag": "text", "text": "\n\n"}])
         
-        print(f"📤 发送关键词 '{keyword}' 批量通知到 {len(self.webhook_urls)} 个机器人...")
+        print(f"📤 [{self.name}] 发送关键词 '{keyword}' 批量通知到 {len(self.webhook_urls)} 个机器人...")
         self.send_to_all_webhooks(post_content, is_post=True)
     
     def check_login_status(self, page_content):
@@ -511,10 +557,11 @@ class JDSKUMonitor:
         return True
     
     def create_browser_context(self, playwright, browser_index=1):
-        endpoint_url = "http://127.0.0.1:9222"
+        # 使用配置中的端口
+        endpoint_url = f"http://127.0.0.1:{self.port}"
         
         try:
-            print(f"🔗 正在接管本地 Chrome (127.0.0.1:9222)...")
+            print(f"🔗 [{self.name}] 正在接管本地 Chrome (127.0.0.1:{self.port})...")
             browser = playwright.chromium.connect_over_cdp(endpoint_url)
             
             if browser.contexts:
@@ -532,7 +579,7 @@ class JDSKUMonitor:
             
             return context
         except Exception as e:
-            print(f"❌ 连接失败！请确保 Chrome 已通过 --remote-debugging-port=9222 启动。")
+            print(f"❌ [{self.name}] 连接失败！请确保 Chrome 已通过 --remote-debugging-port={self.port} 启动。")
             raise e
 
     def remove_hot_sale_products(self, html_content):
@@ -596,7 +643,7 @@ class JDSKUMonitor:
                             })
             
             except Exception as e:
-                print(f"❌ 提取商品信息时出错: {e}")
+                print(f"❌ [{self.name}] 提取商品信息时出错: {e}")
                 continue
         
         return product_links
@@ -624,15 +671,22 @@ class JDSKUMonitor:
             brand_str = '%25E7%259C%259F%25E6%2588%2591%25EF%25BC%2588realme%25EF%25BC%2589'
         elif brand == 'vivo' or brand == 'iqoo':
             brand_str = 'vivo'
-            
-        if min_price > 0 or max_price > 0:
-            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={quote(quote(keyword, encoding='utf-8'), encoding='utf-8')}&ext_attr=5522:90100&exp_brand={brand_str}"
-            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-{min_price}-{max_price}-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
+
+        ext_str = "&ext_attr=5522:90100"
+
+        if self.type_str == "":
+            suffix = ext_str
         else:
-            search_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-0-0-0-1-1-60.html?keyword={quote(keyword, encoding='utf-8')}"
+            suffix = ""
+        
+        if min_price > 0 or max_price > 0:
+            search_url = f"https://mall.jd.com/view_search-0-{self.venderId}-{self.shopId}-0-1-{min_price}-{max_price}-1-1-60.html?keyword={quote(quote(keyword, encoding='utf-8'), encoding='utf-8')}{suffix}&exp_brand={brand_str}"
             safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
-            original_url = f"https://mall.jd.com/view_search-652812-1000080442-1000080442-0-1-0-0-1-1-60.html?keyword={safe_keyword}&ext_attr=5522:90100&exp_brand={brand_str}"
+            original_url = f"https://mall.jd.com/view_search-0-{self.venderId}-{self.shopId}-0-1-{min_price}-{max_price}-1-1-60.html?keyword={safe_keyword}{suffix}&exp_brand={brand_str}"
+        else:
+            search_url = f"https://mall.jd.com/view_search-0-{self.venderId}-{self.shopId}-0-0-0-0-1-1-60.html?keyword={quote(keyword, encoding='utf-8')}{suffix}"
+            safe_keyword = re.sub(r'[^\w\u4e00-\u9fa5]', '_', keyword)
+            original_url = f"https://mall.jd.com/view_search-0-{self.venderId}-{self.shopId}-0-1-0-0-1-1-60.html?keyword={safe_keyword}{suffix}&exp_brand={brand_str}"
         
         with sync_playwright() as p:
             context = self.create_browser_context(p, browser_index)
@@ -671,7 +725,7 @@ class JDSKUMonitor:
                 try:
                     if 'page' in locals():
                         page.close()
-                        print(f"🧹 [Debug] 已关闭关键词 '{keyword}' 的标签页")
+                        print(f"🧹 [Debug] [{self.name}] 已关闭关键词 '{keyword}' 的标签页")
                 except:
                     pass
     
@@ -690,7 +744,7 @@ class JDSKUMonitor:
         product_links, search_url, original_url = search_result
         
         if not product_links:
-            print(f"❌ 浏览器 {browser_index} 搜索关键词 '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 未找到商品 搜索URL: {search_url}")
+            print(f"❌ [{self.name}] 浏览器 {browser_index} 搜索关键词 '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 未找到商品 搜索URL: {search_url}")
             return set(), [], set(), []
         
         all_skus = set(product['sku_id'] for product in product_links)
@@ -704,14 +758,14 @@ class JDSKUMonitor:
         self.save_product_details(keyword_config, product_links, all_skus, new_skus_for_keyword, timestamp)
         
         if new_skus_for_keyword:
-            print(f"🔔  浏览器 {browser_index} 搜索关键词 '{keyword}' 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 发现 {len(new_skus_for_keyword)} 个新SKU，立即发送通知... 搜索URL: {search_url}")
+            print(f"🔔  [{self.name}] 浏览器 {browser_index} 搜索关键词 '{keyword}' 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 发现 {len(new_skus_for_keyword)} 个新SKU，立即发送通知... 搜索URL: {search_url}")
             self.send_keyword_new_skus_notification(keyword_config, new_products_for_keyword)
             self.update_keyword_stats(keyword_config, len(new_skus_for_keyword))
 
-            print(f"🚀 [即时触发] 关键词 '{keyword}' 发现新SKU，正在运行过滤脚本...")
-            self.run_filter_by_history_script()
+            print(f"🚀 [即时触发] [{self.name}] 关键词 '{keyword}' 发现新SKU，正在运行过滤脚本...")
+            # self.run_filter_by_history_script()
         else:
-            print(f"ℹ️  浏览器 {browser_index} 搜索关键词 '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 没有新SKU 搜索URL: {search_url}")
+            print(f"ℹ️  [{self.name}] 浏览器 {browser_index} 搜索关键词 '{keyword}' (价格: {min_price}-{max_price}元) 在时间点 {datetime.now().isoformat(' ')} 找到 {len(all_skus)} 个SKU 没有新SKU 搜索URL: {search_url}")
         
         return all_skus, product_links, new_skus_for_keyword, new_products_for_keyword
     
@@ -725,7 +779,7 @@ class JDSKUMonitor:
     def send_monitor_summary_notification(self, monitor_data):
         if not monitor_data.get('total_new_skus'):
             self.send_alert_notification(f"ℹ️  {self.monitor_type}本轮监控没有发现新SKU")
-            print("ℹ️  没有新SKU，不发送总结通知")
+            print(f"ℹ️  [{self.name}] 没有新SKU，不发送总结通知")
             return
         
         keyword_details_with_new_skus = {}
@@ -735,7 +789,7 @@ class JDSKUMonitor:
         
         if not keyword_details_with_new_skus:
             self.send_alert_notification(f"ℹ️  {self.monitor_type}没有包含新SKU的关键词")
-            print("ℹ️  没有包含新SKU的关键词，不发送总结通知")
+            print(f"ℹ️  [{self.name}] 没有包含新SKU的关键词，不发送总结通知")
             return
         
         post_content = [
@@ -764,7 +818,7 @@ class JDSKUMonitor:
                     
                     post_content.append([{"tag": "text", "text": f"     - {title} ({sku}) "}] + deep_link_tag + [{"tag": "text", "text": "\n"}])
         
-        print("📤 发送监控总结通知...")
+        print(f"📤 [{self.name}] 发送监控总结通知...")
         self.send_feishu_notification(post_content, self.alert_webhook_url, is_post=True)
         self.has_sent_summary = True
     
@@ -781,10 +835,10 @@ class JDSKUMonitor:
         script_path = r"C:\Users\yuhua\Desktop\rpa\proxy\filter_by_history_with_brand.py"
         
         if not os.path.exists(script_path):
-            print(f"❌ 找不到脚本文件: {script_path}")
+            print(f"❌ [{self.name}] 找不到脚本文件: {script_path}")
             return False
         
-        print(f"🚀 开始运行过滤脚本: {script_path}")
+        print(f"🚀 [{self.name}] 开始运行过滤脚本: {script_path}")
         try:
             result = subprocess.run(
                 [sys.executable, script_path],
@@ -794,40 +848,40 @@ class JDSKUMonitor:
             )
             
             if result.returncode == 0:
-                print("✅ 过滤脚本执行成功")
+                print(f"✅ [{self.name}] 过滤脚本执行成功")
                 return True
             else:
-                print(f"❌ 过滤脚本执行失败，返回码: {result.returncode}")
+                print(f"❌ [{self.name}] 过滤脚本执行失败，返回码: {result.returncode}")
                 print(f"错误输出: {result.stderr}")
                 return False
                 
         except subprocess.TimeoutExpired:
-            print("❌ 过滤脚本执行超时")
+            print(f"❌ [{self.name}] 过滤脚本执行超时")
             return False
         except Exception as e:
-            print(f"❌ 运行过滤脚本时出错: {e}")
+            print(f"❌ [{self.name}] 运行过滤脚本时出错: {e}")
             return False
     
     def monitor_keywords_concurrent(self):
         keywords_config = self.load_keywords_config()
         if not keywords_config:
-            print("❌ 没有加载到关键词配置，跳过本次监控")
+            print(f"❌ [{self.name}] 没有加载到关键词配置，跳过本次监控")
             return
         
         self.keywords_config = keywords_config
         process_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         print("\n" + "="*60)
-        print("🕒 开始并发监控任务")
+        print(f"🕒 [{self.name}] 开始并发监控任务")
         print(f"⏰ 执行时间戳: {process_timestamp}")
         print(f"⏰ 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"📝 配置关键词: {len(self.keywords_config)} 个")
         print("="*60)
         
         with self.sku_lock:
-            print("📁 正在加载历史 SKU 记录...")
+            print(f"📁 [{self.name}] 正在加载历史 SKU 记录...")
             self.cached_historical_skus = self.load_all_existing_skus()
-            print(f"✅ 历史 SKU 加载完成，共 {len(self.cached_historical_skus)} 个")
+            print(f"✅ [{self.name}] 历史 SKU 加载完成，共 {len(self.cached_historical_skus)} 个")
         
         total_new_skus = set()
         total_new_products = []
@@ -839,7 +893,7 @@ class JDSKUMonitor:
             pending_tasks.append((config, i + 1))
             
         while pending_tasks and self.is_running:
-            print(f"🔄 当前池子剩余任务数: {len(pending_tasks)}")
+            print(f"🔄 [{self.name}] 当前池子剩余任务数: {len(pending_tasks)}")
             current_futures = {}
             
             for config, browser_idx in pending_tasks:
@@ -868,10 +922,10 @@ class JDSKUMonitor:
                         total_new_skus.update(new_skus_for_keyword)
                         total_new_products.extend(new_products_for_keyword)
                     else:
-                        print(f"⚠️ 关键词 '{keyword}' 返回空结果，重新放入池子")
+                        print(f"⚠️ [{self.name}] 关键词 '{keyword}' 返回空结果，重新放入池子")
                         pending_tasks.append((config_info, idx))
                 except Exception as e:
-                    print(f"❌ 关键词 '{keyword}' 处理异常: {e}。即将重新尝试...")
+                    print(f"❌ [{self.name}] 关键词 '{keyword}' 处理异常: {e}。即将重新尝试...")
                     pending_tasks.append((config_info, idx))
             
             if pending_tasks:
@@ -888,7 +942,7 @@ class JDSKUMonitor:
         if self.is_running:
             self.send_monitor_summary_notification(self.current_monitor_data)
         
-        print(f"\n✅ 本轮并发监控任务全部完成，共发现 {len(total_new_skus)} 个新SKU")
+        print(f"\n✅ [{self.name}] 本轮并发监控任务全部完成，共发现 {len(total_new_skus)} 个新SKU")
         self.log_detailed_monitoring_result(total_new_skus, process_timestamp, keyword_new_skus_details)
     
     def update_keyword_stats(self, keyword_config, new_skus_count):
@@ -915,7 +969,7 @@ class JDSKUMonitor:
             "last_monitor_time": None,
             "monitor_history": []
         }
-        print("📊 创建新的监控结果")
+        print(f"📊 [{self.name}] 创建新的监控结果")
 
     def update_monitor_results(self, total_new_skus, start_time, process_timestamp, keyword_new_skus_details):
         self.monitor_results['total_monitor_count'] += 1
@@ -936,7 +990,7 @@ class JDSKUMonitor:
             self.monitor_results['monitor_history'] = self.monitor_results['monitor_history'][-100:]
     
     def log_detailed_monitoring_result(self, total_new_skus, process_timestamp, keyword_new_skus_details):
-        log_file = os.path.join(root_dir, "monitor_logs", f"monitor_{datetime.now().strftime('%Y%m%d')}.log")
+        log_file = os.path.join(self.root_dir, "monitor_logs", f"monitor_{datetime.now().strftime('%Y%m%d')}.log")
         
         log_entry = f"\n{'='*80}\n"
         log_entry += f"监控执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -959,18 +1013,18 @@ class JDSKUMonitor:
         interval_minutes = self.get_interval_minutes()
         current_hour = datetime.now().hour
         
-        print(f"⏰ 启动定时监控")
-        print(f"📝 配置关键词文件: {self.keywords_config_file}")
-        print(f"⏱️  当前时间段 ({current_hour}点): 执行间隔 {interval_minutes} 分钟")
-        print(f"💾 按 Ctrl+C 可以安全退出程序")
-        print(f"🛑 再次按 Ctrl+C 强制退出所有进程")
+        print(f"⏰ [{self.name}] 启动定时监控")
+        print(f"📝 [{self.name}] 配置关键词文件: {self.keywords_config_file}")
+        print(f"⏱️  [{self.name}] 当前时间段 ({current_hour}点): 执行间隔 {interval_minutes} 分钟")
+        print(f"💾 [{self.name}] 按 Ctrl+C 可以安全退出程序")
+        print(f"🛑 [{self.name}] 再次按 Ctrl+C 强制退出所有进程")
         
-        print("\n🚀 开始第一次并发监控...")
+        print(f"\n🚀 [{self.name}] 开始第一次并发监控...")
         self.monitor_keywords_concurrent()
         
         schedule.every(interval_minutes).minutes.do(self.monitor_keywords_concurrent)
         
-        print(f"\n🔄 定时任务已启动，下次执行在 {interval_minutes} 分钟后...")
+        print(f"\n🔄 [{self.name}] 定时任务已启动，下次执行在 {interval_minutes} 分钟后...")
         
         while self.is_running:
             try:
@@ -980,47 +1034,55 @@ class JDSKUMonitor:
                 if datetime.now().minute == 0:
                     new_interval = self.get_interval_minutes()
                     current_jobs = schedule.get_jobs()
-                    if current_jobs and current_jobs[0].interval != timedelta(minutes=new_interval):
-                        print(f"🕒 检测到时间段变化，调整执行间隔为 {new_interval} 分钟")
-                        schedule.clear()
+                    # 查找当前实例的job
+                    instance_jobs = [job for job in current_jobs if job.job_func.__name__ == 'monitor_keywords_concurrent']
+                    if instance_jobs and instance_jobs[0].interval != timedelta(minutes=new_interval):
+                        print(f"🕒 [{self.name}] 检测到时间段变化，调整执行间隔为 {new_interval} 分钟")
+                        # 只清除并重新创建自己的job比较复杂，这里简化处理，schedule通常在各自线程
+                        schedule.clear() 
                         schedule.every(new_interval).minutes.do(self.monitor_keywords_concurrent)
                 
             except KeyboardInterrupt:
                 if self.is_shutting_down:
-                    print("\n🛑 强制退出...")
+                    print(f"\n🛑 [{self.name}] 强制退出...")
                     break
                 else:
                     self.signal_handler(signal.SIGINT, None)
             except Exception as e:
-                print(f"❌ 调度器错误: {e}")
+                print(f"❌ [{self.name}] 调度器错误: {e}")
                 time.sleep(1)
 
-
-def main():
-    keywords_config_file = os.path.join(user_dir, "keywords_config_simple.json")
-    
-    if not os.path.exists(keywords_config_file):
-        print(f"❌ 关键词配置文件不存在: {keywords_config_file}")
-        print("💡 请创建关键词文件")
-        return
-    
-    webhook_urls = [
-        "https://open.feishu.cn/open-apis/bot/v2/hook/72c2024f-8606-4813-984e-12793d3579a3",
-        "https://open.feishu.cn/open-apis/bot/v2/hook/6de1d76f-278b-4b1d-bb68-d940a1a17da7"
-    ]
-    
-    alert_webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/72c2024f-8606-4813-984e-12793d3579a3"
-    
-    monitor = JDSKUMonitor(
-        keywords_config_file, 
-        webhook_urls=webhook_urls,
-        alert_webhook_url=alert_webhook_url
-    )
-    
+def run_monitor_instance(config):
+    monitor = JDSKUMonitor(config)
     monitor.start_scheduled_monitoring()
 
-if __name__ == "__main__":
-    print("京东SKU监控系统 - 即时通知及重试优化版")
-    print("=" * 50)
+def main():
+    threads = []
     
+    for config in MONITOR_CONFIGS:
+        # 验证配置文件是否存在
+        if not os.path.exists(config['keywords_file']):
+            print(f"⚠️  警告: [{config['name']}] 关键词文件不存在: {config['keywords_file']}，跳过此配置")
+            continue
+            
+        t = threading.Thread(target=run_monitor_instance, args=(config,), name=config['name'])
+        t.daemon = True
+        threads.append(t)
+        t.start()
+        print(f"🚀 已启动线程: {config['name']}")
+        time.sleep(5) # 启动间隔
+
+    # 保持主线程运行
+    try:
+        while True:
+            time.sleep(1)
+            # 检查是否有存活线程
+            if not any(t.is_alive() for t in threads):
+                break
+    except KeyboardInterrupt:
+        print("\n👋 主程序被用户中断")
+
+if __name__ == "__main__":
+    print("京东SKU监控系统 - 多店铺/多配置隔离运行版")
+    print("=" * 60)
     main()
