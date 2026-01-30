@@ -760,7 +760,7 @@ class JDSKUMonitor:
                                 title = desc_div.find('a').get_text(strip=True)
                             
                             title_lower = title.lower()
-                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由', '手表', '鞋', '耳机', '音响', '音箱', '充电器', '保护套', '保护壳', '手机壳', '充电线', '数据线', 'MateBook', 'WATCH', '【9成新】']
+                            hot_keywords = ['热销', '热卖', '爆款', '热门', 'hot', '平板', '笔记本', '显示屏', '电脑', '键盘', 'pad', '路由', '手表', '鞋', '耳机', '音响', '音箱', '充电器', '保护套', '保护壳', '手机壳', '充电线', '数据线', 'MateBook', 'WATCH', 'Mate X7 典藏版']
                             is_hot_title = any(keyword in title_lower for keyword in hot_keywords)
                             if(is_hot_title):
                                 continue
