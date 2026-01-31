@@ -21,17 +21,17 @@ import random
 # ================= 配置区 =================
 # 每个配置完全独立，互不干扰
 MONITOR_CONFIGS = [
-    {
-        "name": "11",
-        "venderId": "1000080442",
-        "shopId": "1000080442",
-        "type": "",  # 设为空字符串
-        "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
-        "root_dir": "C:\\data\\test\\1",
-        "port": 9222,
-        "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
-        "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
-    },
+    # {
+    #     "name": "11",
+    #     "venderId": "1000080442",
+    #     "shopId": "1000080442",
+    #     "type": "",  # 设为空字符串
+    #     "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
+    #     "root_dir": "C:\\data\\test\\1",
+    #     "port": 9222,
+    #     "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
+    #     "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
+    # },
     {
         "name": "22",
         "venderId": "10317338",
@@ -39,21 +39,21 @@ MONITOR_CONFIGS = [
         "type": "2",
         "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
         "root_dir": "C:\\data\\test\\2",
-        "port": 9222,
+        "port": 9224,
         "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
         "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
     },
-    {
-        "name": "33",
-        "venderId": "13303382",
-        "shopId": "12594287",
-        "type": "3",
-        "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
-        "root_dir": "C:\\data\\test\\3",
-        "port": 9222,
-        "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
-        "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
-    }
+    # {
+    #     "name": "33",
+    #     "venderId": "13303382",
+    #     "shopId": "12594287",
+    #     "type": "3",
+    #     "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
+    #     "root_dir": "C:\\data\\test\\3",
+    #     "port": 9222,
+    #     "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
+    #     "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"
+    # }
 ]
 
 PROXY_CONFIG = {
@@ -696,7 +696,7 @@ class JDSKUMonitor:
                 page.goto(search_url, timeout=60000, wait_until='networkidle')
                 
                 try:
-                    page.wait_for_selector('.jSearchList-792077 li.jSubObject', timeout=30000)
+                    page.wait_for_selector('.jSearchList-792077 li.jSubObject', timeout=45000)
                     has_empty_message = False
                     try:
                         empty_selector = '.jMessageError'
@@ -1042,12 +1042,6 @@ class JDSKUMonitor:
                         schedule.clear() 
                         schedule.every(new_interval).minutes.do(self.monitor_keywords_concurrent)
                 
-            except KeyboardInterrupt:
-                if self.is_shutting_down:
-                    print(f"\n🛑 [{self.name}] 强制退出...")
-                    break
-                else:
-                    self.signal_handler(signal.SIGINT, None)
             except Exception as e:
                 print(f"❌ [{self.name}] 调度器错误: {e}")
                 time.sleep(1)
@@ -1056,8 +1050,20 @@ def run_monitor_instance(config):
     monitor = JDSKUMonitor(config)
     monitor.start_scheduled_monitoring()
 
+# ================= 信号处理 (全局) =================
+# 在主线程中捕获信号
+def global_signal_handler(signum, frame):
+    print("\n👋 收到停止信号，正在关闭系统...")
+    os._exit(0)
+
 def main():
+    # 注册全局信号处理，只在主线程运行
+    signal.signal(signal.SIGINT, global_signal_handler)
+    signal.signal(signal.SIGTERM, global_signal_handler)
+
     threads = []
+    # 记录已经启动的端口，用于计算间隔
+    started_ports = {}
     
     for config in MONITOR_CONFIGS:
         # 验证配置文件是否存在
@@ -1065,12 +1071,22 @@ def main():
             print(f"⚠️  警告: [{config['name']}] 关键词文件不存在: {config['keywords_file']}，跳过此配置")
             continue
             
+        port = config.get('port')
+        # 如果该端口之前没有启动过，或者该端口的浏览器需要启动间隔
+        if port in started_ports:
+            # 同一端口的不同实例，建议短间隔
+            launch_delay = 3000
+        else:
+            # 不同端口的浏览器启动，设置更长的间隔（例如 15 秒）以避免资源竞争
+            launch_delay = 50
+            started_ports[port] = True
+
         t = threading.Thread(target=run_monitor_instance, args=(config,), name=config['name'])
         t.daemon = True
         threads.append(t)
         t.start()
-        print(f"🚀 已启动线程: {config['name']}")
-        time.sleep(5) # 启动间隔
+        print(f"🚀 已启动线程: {config['name']} (端口: {port})，等待 {launch_delay} 秒后启动下一个...")
+        time.sleep(launch_delay) # 启动间隔
 
     # 保持主线程运行
     try:
