@@ -1,26 +1,9 @@
-// ==UserScript==
-// @name         京东监控助手 - 数据采集器
-// @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  采集京东页面HTML并发送到本地Python服务
-// @author       Your Name
-// @match        https://mall.jd.com/*
-// @grant        GM_xmlhttpRequest
-// @grant        GM_addStyle
-// @grant        GM_notification
-// @connect      127.0.0.1
-// @connect      localhost
-// ==/UserScript==
-
 (function () {
     'use strict';
 
     // 配置：Python服务地址和端口
     const PYTHON_SERVER = 'http://127.0.0.1:5001'; // 根据实际端口修改
     const MONITOR_NAME = '22'; // 监控实例名称
-
-    // 任务文件路径（与Python约定的路径）
-    const TASK_FILE_PATH = 'C:/data/test/2/search_task.json';
 
     // 状态变量
     let isProcessing = false;
@@ -147,7 +130,7 @@
         document.body.appendChild(ui);
 
         // 添加事件监听
-        document.getElementById('btn-check-task').addEventListener('click', checkTaskFile);
+        document.getElementById('btn-check-task').addEventListener('click', checkTask);
         document.getElementById('btn-manual-send').addEventListener('click', sendCurrentPage);
         document.getElementById('btn-clear-log').addEventListener('click', clearLog);
 
@@ -245,143 +228,117 @@
         }
     }
 
-    // 检查任务文件
-    async function checkTaskFile() {
+    // 检查任务（使用GM_xmlhttpRequest）
+    function checkTask() {
         if (isProcessing) {
             addLog('当前正在处理任务，请稍后', 'warning');
             return;
         }
 
-        updateStatus('检查任务文件中...');
-        addLog('开始检查任务文件', 'info');
+        updateStatus('检查任务中...');
+        addLog('开始检查任务', 'info');
 
-        try {
-            // 通过GM_xmlhttpRequest读取本地文件
-            const taskData = await readLocalFile(TASK_FILE_PATH);
+        // 使用GM_xmlhttpRequest绕过跨域限制
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: `${PYTHON_SERVER}/${MONITOR_NAME}/get_task`,
+            timeout: 10000,
+            onload: function (response) {
+                try {
+                    const result = JSON.parse(response.responseText);
 
-            if (!taskData) {
-                addLog('未找到任务文件或文件为空', 'warning');
-                updateStatus('无任务');
-                return;
+                    if (result.status === 'ready') {
+                        addLog(`发现任务: ${result.keyword} (${result.min_price}-${result.max_price}元)`, 'info');
+                        addLog(`搜索ID: ${result.search_id}`, 'info');
+
+                        // 执行搜索任务
+                        executeSearchTask(result);
+                    } else if (result.status === 'waiting') {
+                        addLog('暂无任务', 'info');
+                        updateStatus('无任务');
+                    } else {
+                        addLog(`获取任务失败: ${result.message}`, 'error');
+                        updateStatus('获取失败');
+                    }
+                } catch (e) {
+                    addLog(`解析响应失败: ${e}`, 'error');
+                    updateStatus('解析失败');
+                }
+            },
+            onerror: function (error) {
+                addLog(`请求失败: ${error}`, 'error');
+                updateStatus('请求失败');
+            },
+            ontimeout: function () {
+                addLog('请求超时', 'error');
+                updateStatus('请求超时');
             }
-
-            // 解析任务数据
-            const task = JSON.parse(taskData);
-            currentSearchId = task.search_id;
-
-            addLog(`发现任务: ${task.keyword} (${task.min_price}-${task.max_price}元)`, 'info');
-            addLog(`搜索ID: ${task.search_id}`, 'info');
-
-            // 执行搜索任务
-            await executeSearchTask(task);
-
-        } catch (error) {
-            addLog(`检查任务文件失败: ${error}`, 'error');
-            updateStatus('检查失败');
-        }
-    }
-
-    // 读取本地文件
-    function readLocalFile(filePath) {
-        return new Promise((resolve, reject) => {
-            // 注意：GM_xmlhttpRequest 通常不能直接访问 file:// 协议
-            // 这里需要将文件放在Web服务器或使用其他方法
-
-            // 方案：使用fetch访问本地HTTP服务器（如果Python提供了文件访问接口）
-            // 或者使用扩展API（如果可用）
-
-            // 这里简化处理，假设Python服务提供了文件访问接口
-            fetch(`${PYTHON_SERVER}/${MONITOR_NAME}/get_task_file`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.text();
-                })
-                .then(data => resolve(data))
-                .catch(error => {
-                    console.warn('通过HTTP读取文件失败，尝试其他方法:', error);
-
-                    // 尝试直接使用GM_xmlhttpRequest（可能需要扩展权限）
-                    try {
-                        GM_xmlhttpRequest({
-                            method: 'GET',
-                            url: `file:///${filePath}`,
-                            onload: function (response) {
-                                resolve(response.responseText);
-                            },
-                            onerror: function (error) {
-                                reject(new Error(`无法读取文件: ${error}`));
-                            }
-                        });
-                    } catch (e) {
-                        reject(new Error('所有文件读取方法都失败了'));
-                    }
-                });
         });
     }
 
     // 执行搜索任务
-    async function executeSearchTask(task) {
+    function executeSearchTask(task) {
         isProcessing = true;
         updateStatus(`执行任务: ${task.keyword}`);
 
-        try {
-            // 检查当前页面是否已经是目标URL
-            if (window.location.href !== task.url) {
-                addLog(`跳转到: ${task.url}`, 'info');
-                window.location.href = task.url;
+        // 检查当前页面是否已经是目标URL
+        if (window.location.href !== task.url) {
+            addLog(`跳转到: ${task.url}`, 'info');
+            window.location.href = task.url;
 
-                // 等待页面加载
-                await waitForPageLoad();
-            }
+            // 等待页面加载后执行
+            window.addEventListener('load', function onPageLoad() {
+                window.removeEventListener('load', onPageLoad);
+                processPage(task);
+            });
 
-            // 等待商品列表加载
-            addLog('等待商品列表加载...', 'info');
-            await waitForProductList();
+            // 超时处理
+            setTimeout(() => {
+                processPage(task);
+            }, 15000);
+        } else {
+            processPage(task);
+        }
+    }
 
+    // 处理页面
+    function processPage(task) {
+        // 等待商品列表加载
+        waitForProductList().then(() => {
             // 获取页面HTML
             addLog('获取页面HTML...', 'info');
             const htmlContent = document.documentElement.outerHTML;
 
-            // 发送到Python服务
+            // 发送到Python服务（使用GM_xmlhttpRequest）
             addLog('发送HTML到Python服务...', 'info');
-            const success = await sendHtmlToPython(task.search_id, htmlContent, task.url, task.keyword);
+            sendHtmlToPython(task.search_id, htmlContent, task.url, task.keyword).then(success => {
+                if (success) {
+                    addLog('任务执行成功!', 'info');
+                    updateStatus('任务完成');
 
-            if (success) {
-                addLog('任务执行成功!', 'info');
-                updateStatus('任务完成');
+                    // 删除任务文件
+                    deleteTaskFile();
 
-                // 删除任务文件（通过Python服务）
-                await deleteTaskFile();
+                    // 显示成功通知
+                    showNotification('任务完成', `关键词: ${task.keyword} 已处理`);
+                } else {
+                    addLog('发送失败，请重试', 'error');
+                    updateStatus('发送失败');
+                }
 
-                // 显示成功通知
-                showNotification('任务完成', `关键词: ${task.keyword} 已处理`);
-            } else {
-                addLog('发送失败，请重试', 'error');
+                isProcessing = false;
+                currentSearchId = null;
+            }).catch(error => {
+                addLog(`发送失败: ${error}`, 'error');
                 updateStatus('发送失败');
-            }
-
-        } catch (error) {
-            addLog(`任务执行失败: ${error}`, 'error');
-            updateStatus('执行失败');
-        } finally {
+                isProcessing = false;
+                currentSearchId = null;
+            });
+        }).catch(error => {
+            addLog(`等待商品列表失败: ${error}`, 'error');
+            updateStatus('加载失败');
             isProcessing = false;
             currentSearchId = null;
-        }
-    }
-
-    // 等待页面加载
-    function waitForPageLoad() {
-        return new Promise((resolve) => {
-            if (document.readyState === 'complete') {
-                resolve();
-            } else {
-                window.addEventListener('load', resolve);
-
-                // 超时处理
-                setTimeout(resolve, 10000);
-            }
         });
     }
 
@@ -441,9 +398,9 @@
         });
     }
 
-    // 发送HTML到Python服务
+    // 发送HTML到Python服务（使用GM_xmlhttpRequest）
     function sendHtmlToPython(searchId, htmlContent, url, keyword) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const data = {
                 search_id: searchId,
                 html_content: htmlContent,
@@ -491,25 +448,39 @@
         });
     }
 
-    // 删除任务文件
+    // 删除任务文件（使用GM_xmlhttpRequest）
     function deleteTaskFile() {
         return new Promise((resolve) => {
-            // 通过Python服务删除任务文件
-            fetch(`${PYTHON_SERVER}/${MONITOR_NAME}/delete_task_file`, {
-                method: 'POST'
-            })
-                .then(response => {
-                    if (response.ok) {
-                        addLog('任务文件已删除', 'info');
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: `${PYTHON_SERVER}/${MONITOR_NAME}/delete_task_file`,
+                timeout: 10000,
+                onload: function (response) {
+                    if (response.status === 200) {
+                        try {
+                            const result = JSON.parse(response.responseText);
+                            if (result.status === 'success') {
+                                addLog('任务文件已删除', 'info');
+                            } else {
+                                addLog(`删除任务文件失败: ${result.message}`, 'warning');
+                            }
+                        } catch (e) {
+                            addLog('解析删除响应失败', 'warning');
+                        }
                     } else {
-                        addLog('删除任务文件失败', 'warning');
+                        addLog(`删除文件HTTP错误: ${response.status}`, 'warning');
                     }
                     resolve();
-                })
-                .catch(error => {
+                },
+                onerror: function (error) {
                     addLog(`删除文件请求失败: ${error}`, 'warning');
                     resolve();
-                });
+                },
+                ontimeout: function () {
+                    addLog('删除文件请求超时', 'warning');
+                    resolve();
+                }
+            });
         });
     }
 
@@ -595,6 +566,38 @@
         }
     }
 
+    // 测试Python服务连接（使用GM_xmlhttpRequest）
+    function testPythonConnection() {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: `${PYTHON_SERVER}/${MONITOR_NAME}/health`,
+            timeout: 5000,
+            onload: function (response) {
+                if (response.status === 200) {
+                    try {
+                        const data = JSON.parse(response.responseText);
+                        addLog(`Python服务连接成功: ${data.name}`, 'info');
+                        updateStatus('服务正常');
+                    } catch (e) {
+                        addLog('解析健康检查响应失败', 'warning');
+                        updateStatus('服务异常');
+                    }
+                } else {
+                    addLog(`Python服务连接失败: HTTP ${response.status}`, 'error');
+                    updateStatus('服务断开');
+                }
+            },
+            onerror: function (error) {
+                addLog(`Python服务连接失败: ${error}`, 'error');
+                updateStatus('服务断开');
+            },
+            ontimeout: function () {
+                addLog('Python服务连接超时', 'error');
+                updateStatus('服务超时');
+            }
+        });
+    }
+
     // 自动检查任务
     function startAutoCheck() {
         if (taskCheckInterval) {
@@ -603,7 +606,7 @@
 
         taskCheckInterval = setInterval(() => {
             if (!isProcessing) {
-                checkTaskFile();
+                checkTask();
             }
         }, 30000); // 每30秒检查一次
 
@@ -624,25 +627,6 @@
         startAutoCheck();
 
         addLog('初始化完成，等待任务中...', 'info');
-    }
-
-    // 测试Python服务连接
-    function testPythonConnection() {
-        fetch(`${PYTHON_SERVER}/${MONITOR_NAME}/health`)
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                }
-                throw new Error(`HTTP ${response.status}`);
-            })
-            .then(data => {
-                addLog(`Python服务连接成功: ${data.name}`, 'info');
-                updateStatus('服务正常');
-            })
-            .catch(error => {
-                addLog(`Python服务连接失败: ${error}`, 'error');
-                updateStatus('服务断开');
-            });
     }
 
     // 页面加载完成后初始化

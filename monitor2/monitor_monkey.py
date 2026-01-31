@@ -36,6 +36,18 @@ MONITOR_CONFIGS = [
         "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a",
         "flask_port": 5001  # Flask服务端口
     },
+    # {
+    #     "name": "33",
+    #     "venderId": "13303382",
+    #     "shopId": "12594287",
+    #     "type": "3",
+    #     "keywords_file": "C:\\Users\\yuhua\\Desktop\\rpa\\feishu\\monitor2\\keywords_config_simple.json",
+    #     "root_dir": "C:\\data\\test\\3",
+    #     "port": 9223,
+    #     "webhook_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a"],
+    #     "alert_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/422c57a3-6b1a-4372-98f4-64ffaae3550a",
+    #     "flask_port": 5001  # Flask服务端口
+    # }
 ]
 
 PROXY_CONFIG = {
@@ -63,7 +75,7 @@ class JDSKUMonitor:
         self.webhook_urls = config['webhook_urls']
         self.alert_webhook_url = config['alert_webhook_url']
         
-        self.all_skus_dir = os.path.join(self.root_dir, "all_skus1")
+        self.all_skus_dir = os.path.join(self.root_dir, "all_skus")
         self.all_history_dir = os.path.join(self.root_dir, "all_history_with_brand")
         self.new_skus_records_dir = os.path.join(self.root_dir, "new_skus_records")
         self.monitor_results_file = os.path.join(self.root_dir, "monitor_results.json")
@@ -280,8 +292,8 @@ class JDSKUMonitor:
             'new_skus_list': list(merged_new_skus_history)
         }
         
-        with open(details_filepath, 'w', encoding='utf-8') as f:
-            json.dump(details_data, f, ensure_ascii=False, indent=2)
+        # with open(details_filepath, 'w', encoding='utf-8') as f:
+        #     json.dump(details_data, f, ensure_ascii=False, indent=2)
         
         print(f"✅ [{self.name}] 已保存商品详情到: {details_filename}")
         return product_links
@@ -555,6 +567,71 @@ class JDSKUMonitor:
         @app.route(f'/{self.name}/health', methods=['GET'])
         def health():
             return jsonify({'status': 'healthy', 'name': self.name, 'timestamp': datetime.now().isoformat()})
+        
+        # 新增端点：获取任务文件内容
+        @app.route(f'/{self.name}/get_task_file', methods=['GET'])
+        def get_task_file():
+            task_file = os.path.join(self.root_dir, "search_task.json")
+            
+            if not os.path.exists(task_file):
+                return jsonify({'status': 'error', 'message': '任务文件不存在'}), 404
+            
+            try:
+                with open(task_file, 'r', encoding='utf-8') as f:
+                    task_data = json.load(f)
+                return jsonify(task_data)
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+        
+        # 新增端点：删除任务文件
+        @app.route(f'/{self.name}/delete_task_file', methods=['POST'])
+        def delete_task_file():
+            task_file = os.path.join(self.root_dir, "search_task.json")
+            
+            try:
+                if os.path.exists(task_file):
+                    os.remove(task_file)
+                    print(f"🗑️  [{self.name}] 已删除任务文件")
+                    return jsonify({'status': 'success', 'message': '文件已删除'})
+                else:
+                    return jsonify({'status': 'success', 'message': '文件不存在'})
+            except Exception as e:
+                print(f"❌ [{self.name}] 删除任务文件失败: {e}")
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+        
+        # 新增端点：获取任务（供油猴脚本使用）
+        @app.route(f'/{self.name}/get_task', methods=['GET'])
+        def get_task():
+            """获取搜索任务"""
+            task_file = os.path.join(self.root_dir, "search_task.json")
+            
+            if not os.path.exists(task_file):
+                return jsonify({'status': 'waiting', 'message': '暂无任务'})
+            
+            try:
+                with open(task_file, 'r', encoding='utf-8') as f:
+                    task_data = json.load(f)
+                
+                # 检查任务是否过期（超过10分钟）
+                request_time = datetime.fromisoformat(task_data.get('request_time', '2000-01-01'))
+                if (datetime.now() - request_time).total_seconds() > 600:
+                    print(f"⚠️  [{self.name}] 任务过期，删除: {task_file}")
+                    os.remove(task_file)
+                    return jsonify({'status': 'waiting', 'message': '任务已过期'})
+                
+                return jsonify({
+                    'status': 'ready',
+                    'search_id': task_data['search_id'],
+                    'url': task_data['url'],
+                    'keyword': task_data['keyword'],
+                    'min_price': task_data['min_price'],
+                    'max_price': task_data['max_price'],
+                    'timestamp': task_data['timestamp']
+                })
+                
+            except Exception as e:
+                print(f"❌ [{self.name}] 读取任务文件失败: {e}")
+                return jsonify({'status': 'error', 'message': str(e)})
     
     # 修改的搜索方法：使用油猴脚本获取HTML
     def search_jd_products(self, keyword_config, timestamp, browser_index=1):
@@ -610,8 +687,7 @@ class JDSKUMonitor:
             if search_id in self.html_cache:
                 del self.html_cache[search_id]
         
-        # 这里需要与油猴脚本协调
-        # 方案1：通过本地文件传递任务（简单可靠）
+        # 通过本地文件传递任务（简单可靠）
         task_file = os.path.join(self.root_dir, "search_task.json")
         task_data = {
             'search_id': search_id,
@@ -629,7 +705,7 @@ class JDSKUMonitor:
         print(f"📝 [{self.name}] 已写入搜索任务到文件: {task_file}")
         
         # 等待油猴脚本执行并返回HTML
-        max_wait_time = 90  # 最大等待90秒
+        max_wait_time = 180  # 最大等待90秒
         wait_interval = 5
         total_wait = 0
         
@@ -755,7 +831,7 @@ class JDSKUMonitor:
         if (7 <= current_hour <= 24):
             return random.randint(5, 10)
         else:
-            return 5 * 60
+            return 1 * 60
     
     def run_filter_by_history_script(self):
         script_path = r"C:\Users\yuhua\Desktop\rpa\proxy\filter_by_history_with_brand.py"
