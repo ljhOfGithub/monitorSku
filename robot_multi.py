@@ -50,7 +50,7 @@ ROBOT_CONFIGS = {
 
 class DeviceQueryConfig:
     '''设备查询配置'''
-    API_KEY = "39298081f644727e467e6496182391c0"
+    API_KEY = "b2852f71e4c6ed5ecd42ceee080755d4"
     QUERY_URL = "https://data.06api.com/api.php"
 
 class BaiduOCRConfig:
@@ -58,18 +58,20 @@ class BaiduOCRConfig:
     # 主账号
     # API_KEY = "B2WT4jGOnJ7V0kq7nRKtJVw4"
     # SECRET_KEY = "SjRXsgpiaUfL1onSb4Z3w6RkqUeatlfs"
-    API_KEY_BACKUP1 = "B2WT4jGOnJ7V0kq7nRKtJVw4"
-    SECRET_KEY_BACKUP1 = "SjRXsgpiaUfL1onSb4Z3w6RkqUeatlfs"
+    # API_KEY_BACKUP1 = "B2WT4jGOnJ7V0kq7nRKtJVw4"
+    # SECRET_KEY_BACKUP1 = "SjRXsgpiaUfL1onSb4Z3w6RkqUeatlfs"
     
     # 备用账号1
-    # API_KEY_BACKUP1 = "isVf2aoX7BPaptjqJAet8KH3"
-    # SECRET_KEY_BACKUP1 = "F4kIUlsEhUlJVLFjJhPJYFppTB7oV9GQ"
-    API_KEY = "isVf2aoX7BPaptjqJAet8KH3"
-    SECRET_KEY = "F4kIUlsEhUlJVLFjJhPJYFppTB7oV9GQ"
+    API_KEY_BACKUP1 = "isVf2aoX7BPaptjqJAet8KH3"
+    SECRET_KEY_BACKUP1 = "F4kIUlsEhUlJVLFjJhPJYFppTB7oV9GQ"
+    # API_KEY = "isVf2aoX7BPaptjqJAet8KH3"
+    # SECRET_KEY = "F4kIUlsEhUlJVLFjJhPJYFppTB7oV9GQ"
     
     # 备用账号2
-    API_KEY_BACKUP2 = "ypa6lyhMoIxj5rgX6RUQ1ABW"
-    SECRET_KEY_BACKUP2 = "zZxx9BfBFIWkG28t1cl2GNMEl2ikAO0o"
+    API_KEY_BACKUP2 = "B2WT4jGOnJ7V0kq7nRKtJVw4"
+    SECRET_KEY_BACKUP2 = "SjRXsgpiaUfL1onSb4Z3w6RkqUeatlfs"
+    API_KEY = "ypa6lyhMoIxj5rgX6RUQ1ABW"
+    SECRET_KEY = "zZxx9BfBFIWkG28t1cl2GNMEl2ikAO0o"
     
     # OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic"
     OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
