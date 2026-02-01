@@ -938,7 +938,7 @@ def start_robot_process(brand, config):
                     reply_parts.append(f"📛 失败原因: {result.get('error_message', '未知错误')}")
                 
                 feishu.reply_message(message_id, "\n".join(reply_parts), chat_type)
-                return                        
+                return
             
             elif msg_type == "image":
                 image_content = eval(data.event.message.content)
