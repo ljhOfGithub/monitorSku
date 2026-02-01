@@ -839,11 +839,106 @@ def start_robot_process(brand, config):
             msg_type = data_dict["event"]["message"]["message_type"]
             
             feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], brand)
-            
+
             if msg_type == "text":
-                # 文本消息直接pass，不处理
-                logger.info(f"收到文本消息，跳过处理")
-                return
+                try:
+                    content_dict = json.loads(data.event.message.content)
+                    text = content_dict.get("text", "").strip() 
+                except Exception as e:
+                    logger.error(f"解析文本消息失败: {e}")
+                    return
+                
+                logger.info(f"收到文本消息: {text}")
+
+                #提取 IMEI 码
+                product_code = DeviceQuery.extract_product_code(text)
+                
+                if not product_code:
+                    return
+
+                #执行查询逻辑
+                logger.info(f"从文本提取到码: {product_code}")
+
+                #查重
+                is_first_query = ImeiQueryManager.is_first_query(brand, product_code)
+                query_count = ImeiQueryManager.get_query_count(brand, product_code) + 1
+                
+                if not is_first_query:
+                    feishu.reply_message(message_id, f'[{brand}] ❌ 该设备已查询过（第{query_count-1}次），禁止重复查询！', chat_type)
+                    return
+                
+                #调用接口
+                result = DeviceQuery.query_device_info(product_code, brand)
+                
+                save_query_result(brand, product_code, result, "", query_count)
+                
+                #检查条件 & 发送通知
+                device_info = result.get('device_info', {})
+                meets_conditions, condition_reason = check_meets_conditions(brand, device_info)
+                
+                #获取 IMEI 和 激活状态 
+                imei = device_info.get('imei', '未知')
+                is_activated, activate_date = get_activation_status(brand, device_info)
+
+                if meets_conditions and result['success']:
+                    notification_parts = []
+                    notification_parts.append(f"🎯 发现符合条件的设备！ (文本录入)") # 稍微加个备注区分来源，保持格式一致
+                    notification_parts.append("")
+                    notification_parts.append(f"🏷️ 品牌: {brand.upper()}")
+                    notification_parts.append(f"🔢 商品唯一码: {product_code}")
+                    notification_parts.append(f"📊 查询次数: 第{query_count}次查询")
+                    
+                    notification_parts.append(f"📱 IMEI码: {imei}")
+                    notification_parts.append(f"📄 设备型号: {device_info.get('model', '未知')}")
+                    
+                    if is_activated is True:
+                        notification_parts.append("🟢 设备状态: 已激活")
+                        if activate_date:
+                            notification_parts.append(f"📅 激活日期: {activate_date}")
+                    elif is_activated is False:
+                        notification_parts.append("🟡 设备状态: 未激活")
+                    else:
+                        notification_parts.append("⚪ 设备状态: 未知")
+                    
+                    if brand in ['huawei', 'honor']:
+                        type_info = device_info.get('type', {})
+                        refurbished = type_info.get('refurbished')
+                        retail = type_info.get('retail')
+                        
+                        if refurbished is True:
+                            notification_parts.append("🔴 设备类型: 官翻机")
+                        elif refurbished is False:
+                            notification_parts.append("🟢 设备类型: 非官翻机")
+                        
+                        if retail is True:
+                            notification_parts.append("🟢 销售类型: 零售机")
+                        elif retail is False:
+                            notification_parts.append("🟡 销售类型: 非零售机")
+
+                    notification_parts.append("")
+                    notification_parts.append("✅ 此设备符合条件，请及时处理！")
+                    
+                    #发送通知
+                    WebhookNotifier.send_notification("\n".join(notification_parts))
+                
+                reply_parts = []
+                reply_parts.append(f"📱 {brand.upper()}设备查询结果")
+                reply_parts.append("")
+                reply_parts.append(f"🔢 商品唯一码: {product_code}")
+                reply_parts.append(f"📊 查询次数: 第{query_count}次查询")
+                
+                if result['success']:
+                    if meets_conditions:
+                        reply_parts.append("🟢 符合条件")
+                        reply_parts.append(f"📄 设备型号: {device_info.get('model', '未知')}")
+                    else:
+                        reply_parts.append("🔴 不符合条件")
+                else:
+                    reply_parts.append("❌ 查询状态: 失败")
+                    reply_parts.append(f"📛 失败原因: {result.get('error_message', '未知错误')}")
+                
+                feishu.reply_message(message_id, "\n".join(reply_parts), chat_type)
+                return                        
             
             elif msg_type == "image":
                 image_content = eval(data.event.message.content)
