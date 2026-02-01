@@ -837,11 +837,11 @@ def start_robot_process(brand, config):
             msg_type = data_dict["event"]["message"]["message_type"]
             
             feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], brand)
-            
+
             if msg_type == "text":
                 # 文本消息直接pass，不处理
                 logger.info(f"收到文本消息，跳过处理")
-                return
+                return                        
             
             elif msg_type == "image":
                 image_content = eval(data.event.message.content)
