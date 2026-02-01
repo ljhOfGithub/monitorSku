@@ -839,8 +839,80 @@ def start_robot_process(brand, config):
             feishu = FeishuApi(config['APP_ID'], config['APP_SECRET'], brand)
             
             if msg_type == "text":
-                # 文本消息直接pass，不处理
-                logger.info(f"收到文本消息，跳过处理")
+                # --- [新增] 1. 解析文本内容 (加了防报错处理) ---
+                try:
+                    content_dict = json.loads(data.event.message.content)
+                    text = content_dict.get("text", "").strip() 
+                except Exception as e:
+                    logger.error(f"解析文本消息失败: {e}")
+                    return
+                
+                logger.info(f"收到文本消息: {text}")
+
+                # --- [新增] 2. 提取 IMEI 码 ---
+                product_code = DeviceQuery.extract_product_code(text)
+                
+                if not product_code:
+                    return
+
+                # --- [新增] 3. 执行查询逻辑 (核心部分) ---
+                logger.info(f"从文本提取到码: {product_code}")
+
+                # 3.1 查重逻辑
+                is_first = ImeiQueryManager.is_first_query(brand, product_code)
+                q_count = ImeiQueryManager.get_query_count(brand, product_code) + 1
+                
+                if not is_first:
+                    feishu.reply_message(message_id, f'[{brand}] ❌ 已查询过（第{q_count-1}次），禁止重复！', chat_type)
+                    return
+                
+                # 3.2 调用接口
+                result = DeviceQuery.query_device_info(product_code, brand)
+                
+                # 3.3 保存结果 (传空字符串作为图片路径，JSON会正常保存)
+                save_query_result(brand, product_code, result, "", q_count)
+                
+                # 3.4 检查条件 & 发送通知
+                device_info = result.get('device_info', {})
+                meets, condition_reason = check_meets_conditions(brand, device_info)
+                
+                is_activated, activate_date = get_activation_status(brand, device_info)
+
+                # 1. 构建Webhook 通知
+                if result['success'] and meets:
+                    note = [f"🎯 发现符合条件设备 (文本录入)", 
+                            f"🏷️ 品牌: {brand}", 
+                            f"🔢 码: {product_code}",
+                            f"📄 型号: {device_info.get('model', '未知')}"]
+                    
+                    # 补充激活详情
+                    if is_activated is True:
+                        note.append(f"🟢 状态: 已激活 (日期: {activate_date})")
+                    else:
+                        note.append("🟡 状态: 未激活")
+                    
+                    note.append("✅ 请及时处理！")
+                    WebhookNotifier.send_notification("\n".join(note))
+                
+                reply = [f"📱 {brand}查询结果", f"🔢 码: {product_code}"]
+                if result['success']:
+                    model = device_info.get('model', '未知')
+                    if meets:
+                        reply.append("🟢 符合条件")
+                    else:
+                        reply.append("🔴 不符合条件") 
+                    
+                    reply.append(f"📄 型号: {model}")
+                    
+                    if is_activated is True:
+                        reply.append(f"📅 激活日期: {activate_date}")
+                    elif is_activated is False:
+                        reply.append("✨ 状态: 未激活")
+                        
+                else:
+                    reply.append(f"❌ 失败: {result.get('error_message')}")
+                
+                feishu.reply_message(message_id, "\n".join(reply), chat_type)
                 return
             
             elif msg_type == "image":
