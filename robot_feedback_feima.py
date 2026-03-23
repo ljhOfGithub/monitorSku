@@ -145,8 +145,6 @@ async def check_url_status(url):
             
             page = await context.new_page()
             
-            logging.info(f"正在通过 Stealth-Chrome 访问: {url}")
-            
             # 设置导航超时
             await page.goto(url, timeout=60000, wait_until="domcontentloaded")
             
@@ -158,15 +156,13 @@ async def check_url_status(url):
             
             try:
                 locator = page.locator(target_xpath)
-                # 检查元素是否存在且可见
                 if await locator.count() > 0:
                     status_text = await locator.inner_text()
                     status_text = status_text.strip()
                     
                     if "已售出" in status_text or "已下架" in status_text:
-                        logging.info(f"❌ 监控发现已售出/下架: {url}")
                         return False
-            except Exception as e:
+            except Exception:
                 pass
 
             # 关键词兜底检查
@@ -174,14 +170,11 @@ async def check_url_status(url):
             invalid_keywords = ["已下架", "已售出", "商品不存在", "已删除"]
             for kw in invalid_keywords:
                 if kw in page_content:
-                    logging.info(f"❌ 关键字匹配失效 '{kw}': {url}")
                     return False
 
             if len(page_content) < 3000:
-                logging.warning(f"⚠️ 页面内容异常过少: {url}")
                 return False
 
-            logging.info(f"✅ 监控链接依然有效: {url}")
             return True
 
         except Exception as e:
@@ -195,54 +188,44 @@ def get_real_url(short_url):
     """解析京东短链接获取真实落地页 URL"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        # allow_redirects=True 会自动跟随 302 跳转
         response = requests.get(short_url, proxies=PROXY_CONFIG, timeout=10, headers=headers, allow_redirects=True)
         return response.url
     except Exception as e:
         logging.error(f"短链接解析失败 {short_url}: {e}")
         return None
 
-def send_webhook_notification(task, is_success=True):
+def send_webhook_notification(task):
     """发送符合要求的格式化通知"""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    if not is_success:
-        return
-
-    # --- 构造 Deep Link ---
-    # 判断是否为单品
     inspect_id = task.get('inspectSkuId', '')
     target_url = f"https://paipai.m.jd.com/ppinspect/jdReport?inspectSkuId={inspect_id}"
     
-    # 构建京东协议跳转链接
     params_dict = {"category": "jump", "des": "m", "url": target_url}
     encoded_params = quote(json.dumps(params_dict, separators=(',', ':')))
     deep_link_url = f"openapp.jdmobile://virtual?params={encoded_params}"
 
-    # --- 构造富文本 Payload ---
     payload = {
         "msg_type": "post",
         "content": {
             "post": {
                 "zh_cn": {
-                    "title": "🎉 链接可访问通知",
+                    "title": "🎊 京东商品可购买提醒",
                     "content": [
                         [
-                            {"tag": "text", "text": f"📋 主SKU: {task.get('main_sku', '未知')}\n"},
-                            {"tag": "text", "text": f"🔍 质检单号: {inspect_id}\n"},
-                            {"tag": "text", "text": f"✅ 检查结果: 可访问\n"},
-                            {"tag": "text", "text": f"📊 检查次数: {task.get('check_count', 0)}\n"},
-                            {"tag": "text", "text": f"🕐 检查时间: {now_str}\n\n"}
+                            {"tag": "text", "text": f"📋 质检单号: {inspect_id}\n"},
+                            {"tag": "text", "text": f"✅ 当前状态: 已恢复上架\n"},
+                            {"tag": "text", "text": f"📊 累计监控: {task.get('check_count', 0)} 次\n"},
+                            {"tag": "text", "text": f"🕐 发现时间: {now_str}\n\n"}
                         ],
                         [
-                            {"tag": "a", "text": "🔗 点击购买 (京东APP)", "href": deep_link_url}
+                            {"tag": "a", "text": "🛒 立即去京东下单", "href": deep_link_url}
                         ]
                     ]
                 }
             }
         }
     }
-
     try:
         requests.post(WEBHOOK_URL, json=payload, timeout=10)
     except Exception as e:
@@ -251,28 +234,25 @@ def send_webhook_notification(task, is_success=True):
 # --- 消息接收回调 ---
 
 def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1):
-    # --- 新增：消息去重判断 ---
     msg_id = data.event.message.message_id
     processed_msgs = load_processed_messages()
     if msg_id in processed_msgs:
         return
     
     save_processed_message(msg_id)
-    # -----------------------
 
     msg_content = json.loads(data.event.message.content)
-    full_text = str(msg_content.get('text', '')) if 'text' in msg_content else str(msg_content)
+    # 飞书消息可能在 text 字段里，也可能直接是 json 字符串
+    full_text = msg_content.get('text', str(msg_content))
     
-    # 逐行读取逻辑
     lines = full_text.split('\n')
-    added_count = 0
     results_summary = []
-
     tasks = load_data()
     
     short_url_pattern = r'https?://3\.cn/[a-zA-Z0-9\-]+'
     paipai_url_pattern = r'https%3A//paipai\.m\.jd\.com[a-zA-Z0-9%._\-\[\]]+'
 
+    added_new = 0
     for line in lines:
         line = line.strip()
         if not line: continue
@@ -288,42 +268,40 @@ def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1):
             clean_url = urllib.parse.unquote(raw_url).split('"')[0].split('}')[0].split(')')[0]
         
         if clean_url:
-            inspect_sku_id = ""
             sku_match = re.search(r'inspectSkuId[%=](\d+)', clean_url)
             if sku_match: 
                 inspect_sku_id = sku_match.group(1)
                 
                 if any(t['inspectSkuId'] == inspect_sku_id for t in tasks):
-                    results_summary.append(f"🟡 {inspect_sku_id} (已在监控中)")
-                    continue
-
-                new_task = {
-                    "inspectSkuId": inspect_sku_id,
-                    "main_sku": "批量导入", 
-                    "url": clean_url,
-                    "create_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "expire_at": (datetime.now() + timedelta(hours=6)).timestamp(),
-                    "check_count": 0,
-                    "history_checks": []
-                }
-                tasks.append(new_task)
-                added_count += 1
-                results_summary.append(f"🟢 {inspect_sku_id} (成功添加)")
+                    results_summary.append(f"🟡 {inspect_sku_id} (队列中)")
+                else:
+                    new_task = {
+                        "inspectSkuId": inspect_sku_id,
+                        "url": clean_url,
+                        "create_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "expire_at": (datetime.now() + timedelta(hours=12)).timestamp(),
+                        "check_count": 0
+                    }
+                    tasks.append(new_task)
+                    added_new += 1
+                    results_summary.append(f"🟢 {inspect_sku_id} (开始监控)")
     
-    if added_count > 0:
+    if added_new > 0:
         save_data(tasks)
         
-    # 反馈批量处理结果
-    status_msg = "📊 **批量任务处理结果**\n" + "\n".join(results_summary)
-    requests.post(WEBHOOK_URL, json={
-        "msg_type": "text", 
-        "content": {"text": status_msg}
-    })
+    # 发送【添加总结】通知
+    summary_text = f"📥 **批量监控导入总结**\n"
+    summary_text += f"━━━━━━━━━━━━━━━\n"
+    summary_text += "\n".join(results_summary)
+    summary_text += f"\n━━━━━━━━━━━━━━━\n"
+    summary_text += f"📈 当前监控中总量: {len(tasks)} 条"
+    
+    requests.post(WEBHOOK_URL, json={"msg_type": "text", "content": {"text": summary_text}})
 
 # --- 定时轮询线程 (异步版) ---
 
 async def scanner_loop():
-    logging.info("定期检查器循环 (Stealth Chrome) 已启动...")
+    logging.info("监控轮询器启动...")
     while True:
         try:
             tasks = load_data()
@@ -334,44 +312,50 @@ async def scanner_loop():
             now_ts = datetime.now().timestamp()
             updated_tasks = []
             
-            monitored_list = []
-            sold_out_list = []
+            accessible_count = 0
+            still_sold_out = 0
+            detail_lines = []
 
             for task in tasks:
                 if now_ts > task['expire_at']:
-                    logging.info(f"任务过期移除: {task['inspectSkuId']}")
+                    logging.info(f"任务过期: {task['inspectSkuId']}")
                     continue
                 
                 task['check_count'] += 1
-                task['history_checks'].append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                
                 is_accessible = await check_url_status(task['url'])
                 
                 if is_accessible:
-                    # 仍然有效，发送通知并移除（符合原逻辑：一旦可买就通知并停止监控）
-                    send_webhook_notification(task, is_success=True)
-                    monitored_list.append(f"✅ {task['inspectSkuId']} (已恢复/可访问)")
+                    logging.info(f"✅ 发现可用: {task['inspectSkuId']}")
+                    send_webhook_notification(task)
+                    detail_lines.append(f"✅ {task['inspectSkuId']} (已恢复)")
+                    accessible_count += 1
+                    # 发现可用后，不加入 updated_tasks，即停止监控该条
                 else:
-                    # 依然失效，保留在任务列表中继续监控
                     updated_tasks.append(task)
-                    sold_out_list.append(f"❌ {task['inspectSkuId']} (依然失效)")
+                    still_sold_out += 1
 
             save_data(updated_tasks)
             
-            # 打印当前轮询汇总到控制台
-            if monitored_list or sold_out_list:
-                logging.info(f"--- 轮询汇总 ---")
-                for item in monitored_list: logging.info(item)
-                for item in sold_out_list: logging.info(item)
-                logging.info(f"正在监控总数: {len(updated_tasks)}")
+            # 如果有链接状态变化（发现了可买链接），发送一次【扫描总结】
+            if accessible_count > 0:
+                scan_summary = f"🔄 **自动扫描汇总报告**\n"
+                scan_summary += f"━━━━━━━━━━━━━━━\n"
+                scan_summary += "\n".join(detail_lines)
+                scan_summary += f"\n━━━━━━━━━━━━━━━\n"
+                scan_summary += f"📢 状态更新: {accessible_count} 件已恢复\n"
+                scan_summary += f"⏳ 剩余监控: {len(updated_tasks)} 件"
+                
+                requests.post(WEBHOOK_URL, json={"msg_type": "text", "content": {"text": scan_summary}})
+            
+            # 如果没有变化，只在本地打印日志
+            logging.info(f"轮询完成: 成功 {accessible_count}, 维持监控 {still_sold_out}")
             
         except Exception as e:
             logging.error(f"轮询异常: {e}")
             
-        await asyncio.sleep(60) # 每分钟检查一次
+        await asyncio.sleep(10) # 每 10 秒执行一次全量扫描
 
 def start_async_loop():
-    """在独立线程中运行异步轮询器"""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(scanner_loop())
@@ -381,11 +365,11 @@ def start_async_loop():
 if __name__ == "__main__":
     init_data_file()
 
-    # 1. 启动异步检查线程
+    # 1. 启动轮询线程
     t = threading.Thread(target=start_async_loop, daemon=True)
     t.start()
 
-    # 2. 启动飞书长连接
+    # 2. 启动飞书长连接监听
     event_handler = lark.EventDispatcherHandler.builder("", "") \
         .register_p2_im_message_receive_v1(do_p2_im_message_receive_v1) \
         .build()
@@ -397,5 +381,5 @@ if __name__ == "__main__":
         log_level=lark.LogLevel.INFO
     )
     
-    logging.info("=== 飞书机器人服务启动 (多行识别+Stealth+格式化输出) ===")
+    logging.info("=== 机器人服务已就绪 (Stealth + 批量总结版) ===")
     cli.start()
